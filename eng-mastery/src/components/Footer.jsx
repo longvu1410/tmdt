@@ -27,6 +27,14 @@ const Footer = () => {
             <a href="#" style={linkStyle}>Phát âm chuẩn</a>
           </div>
           {/* Hỗ trợ */}
+          {/* Hỗ trợ001 */}
+          <div>
+            <h4 style={headingStyle}>Hỗ trợ</h4>
+            <a href="#" style={linkStyle}>Trung tâm trợ giúp</a>
+            <a href="#" style={linkStyle}>Câu hỏi thường gặp</a>
+            <a href="#" style={linkStyle}>Liên hệ kỹ thuật</a>
+            <a href="#" style={linkStyle}>Chính sách bảo mật</a>
+          </div>
           <div>
             <h4 style={headingStyle}>Hỗ trợ</h4>
             <a href="#" style={linkStyle}>Trung tâm trợ giúp</a>
