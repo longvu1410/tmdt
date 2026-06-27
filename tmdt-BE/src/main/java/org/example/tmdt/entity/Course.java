@@ -24,6 +24,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.example.tmdt.enums.CourseLevel;
+import org.example.tmdt.enums.CourseStatus;
+import org.example.tmdt.enums.CourseTopic;
 
 @Entity
 @Table(name = "courses")
@@ -92,6 +95,10 @@ public class Course {
 
     @Column(nullable = false)
     private Integer ratingCount;
+
+    /** Giá sau giảm (null = không có khuyến mãi) */
+    @Column(precision = 12, scale = 2)
+    private BigDecimal discountPrice;
 
     @Builder.Default
     @ElementCollection

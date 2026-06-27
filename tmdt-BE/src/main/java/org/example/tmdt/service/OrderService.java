@@ -13,11 +13,11 @@ import org.example.tmdt.entity.AppUser;
 import org.example.tmdt.entity.Course;
 import org.example.tmdt.entity.CourseEnrollment;
 import org.example.tmdt.entity.CourseOrder;
-import org.example.tmdt.entity.CourseStatus;
-import org.example.tmdt.entity.OrderStatus;
-import org.example.tmdt.entity.PaymentMethod;
+import org.example.tmdt.enums.CourseStatus;
+import org.example.tmdt.enums.OrderStatus;
+import org.example.tmdt.enums.PaymentMethod;
 import org.example.tmdt.entity.Voucher;
-import org.example.tmdt.entity.VoucherDiscountType;
+import org.example.tmdt.enums.VoucherDiscountType;
 import org.example.tmdt.exception.BadRequestException;
 import org.example.tmdt.exception.NotFoundException;
 import org.example.tmdt.repository.AppUserRepository;
@@ -42,10 +42,23 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderPriceResponse preview(CheckoutRequest request) {
         Course course = getPurchasableCourse(request.getCourseId());
-        Voucher voucher = resolveVoucher(request.getVoucherCode(), course.getPrice());
-        BigDecimal discountAmount = calculateDiscount(course.getPrice(), voucher);
-        return toPriceResponse(course, voucher, discountAmount);
+        BigDecimal basePrice = course.getDiscountPrice() != null ? course.getDiscountPrice() : course.getPrice();
+        Voucher voucher = resolveVoucher(request.getVoucherCode(), basePrice);
+        BigDecimal voucherDiscount = calculateDiscount(basePrice, voucher);
+        BigDecimal totalAmount = basePrice.subtract(voucherDiscount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalDiscount = course.getPrice().subtract(totalAmount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+
+        return OrderPriceResponse.builder()
+                .courseId(course.getId())
+                .courseSlug(course.getSlug())
+                .courseTitle(course.getTitle())
+                .voucherCode(voucher == null ? null : voucher.getCode())
+                .originalAmount(course.getPrice())
+                .discountAmount(totalDiscount)
+                .totalAmount(totalAmount)
+                .build();
     }
+
 
     @Transactional(readOnly = true)
     public List<CourseOrderResponse> getMyOrders(UserPrincipal principal) {
@@ -84,9 +97,11 @@ public class OrderService {
 
         AppUser student = appUserRepository.findById(principal.getId())
                 .orElseThrow(() -> new BadRequestException("Student account not found"));
-        Voucher voucher = resolveVoucher(request.getVoucherCode(), course.getPrice());
-        BigDecimal discountAmount = calculateDiscount(course.getPrice(), voucher);
-        BigDecimal totalAmount = course.getPrice().subtract(discountAmount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal basePrice = course.getDiscountPrice() != null ? course.getDiscountPrice() : course.getPrice();
+        Voucher voucher = resolveVoucher(request.getVoucherCode(), basePrice);
+        BigDecimal voucherDiscount = calculateDiscount(basePrice, voucher);
+        BigDecimal totalAmount = basePrice.subtract(voucherDiscount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalDiscount = course.getPrice().subtract(totalAmount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         OrderStatus status = totalAmount.compareTo(BigDecimal.ZERO) == 0 ? OrderStatus.PAID : OrderStatus.PENDING;
         Instant paidAt = status == OrderStatus.PAID ? Instant.now() : null;
 
@@ -95,12 +110,13 @@ public class OrderService {
                 .student(student)
                 .voucherCode(voucher == null ? null : voucher.getCode())
                 .originalAmount(course.getPrice())
-                .discountAmount(discountAmount)
+                .discountAmount(totalDiscount)
                 .totalAmount(totalAmount)
                 .paymentMethod(request.getPaymentMethod() == null ? PaymentMethod.MOCK : request.getPaymentMethod())
                 .status(status)
                 .paidAt(paidAt)
                 .build());
+
 
         if (status == OrderStatus.PAID) {
             completePaidOrder(order, voucher);

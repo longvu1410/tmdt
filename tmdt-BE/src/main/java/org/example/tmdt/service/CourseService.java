@@ -15,11 +15,11 @@ import org.example.tmdt.dto.SubmitCourseReviewRequest;
 import org.example.tmdt.entity.AppUser;
 import org.example.tmdt.entity.Course;
 import org.example.tmdt.entity.CourseEnrollment;
-import org.example.tmdt.entity.CourseLevel;
+import org.example.tmdt.enums.CourseLevel;
 import org.example.tmdt.entity.CourseReview;
 import org.example.tmdt.entity.CourseSection;
-import org.example.tmdt.entity.CourseStatus;
-import org.example.tmdt.entity.CourseTopic;
+import org.example.tmdt.enums.CourseStatus;
+import org.example.tmdt.enums.CourseTopic;
 import org.example.tmdt.exception.BadRequestException;
 import org.example.tmdt.exception.NotFoundException;
 import org.example.tmdt.repository.AppUserRepository;
@@ -36,6 +36,15 @@ public class CourseService {
     private final CourseRepository courseRepository;
     private final AppUserRepository appUserRepository;
     private final CourseEnrollmentRepository courseEnrollmentRepository;
+    private final EmailService emailService;
+
+    @Transactional(readOnly = true)
+    public List<CourseResponse> getTeacherCourses(UserPrincipal principal) {
+        return courseRepository.findByTeacher_IdOrderByCreatedAtDesc(principal.getId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
 
     @Transactional(readOnly = true)
     public List<CourseResponse> getActiveCourses() {
@@ -105,6 +114,21 @@ public class CourseService {
                 .map(this::toResponse)
                 .toList();
     }
+    @Transactional(readOnly = true)
+    public List<CourseResponse> getAllCoursesForAdmin() {
+        return courseRepository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public CourseResponse toggleCourseActiveStatus(Long id) {
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Course not found"));
+        course.setActive(!Boolean.TRUE.equals(course.getActive()));
+        return toResponse(courseRepository.save(course));
+    }
+
 
     @Transactional
     public CourseResponse createCourse(CourseRequest request, UserPrincipal principal) {
@@ -126,6 +150,35 @@ public class CourseService {
     }
 
     @Transactional
+    public CourseResponse teacherUpdateCourse(Long id, CourseRequest request, UserPrincipal principal) {
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Course not found"));
+        if (course.getTeacher() == null || !course.getTeacher().getId().equals(principal.getId())) {
+            throw new BadRequestException("Bạn không có quyền chỉnh sửa khóa học này");
+        }
+        if (course.getStatus() == CourseStatus.APPROVED) {
+            // Re-submit for review when editing an approved course
+            course.setStatus(CourseStatus.PENDING);
+            course.setActive(false);
+            course.setRejectionReason(null);
+        } else if (course.getStatus() == CourseStatus.REJECTED) {
+            course.setStatus(CourseStatus.PENDING);
+            course.setRejectionReason(null);
+        }
+        String slug = normalizeSlug(request.getSlug());
+        if (!course.getSlug().equals(slug) && courseRepository.existsBySlug(slug)) {
+            throw new BadRequestException("Course slug already exists");
+        }
+        applyRequest(course, request, slug);
+        // Keep teacher's actual name
+        AppUser teacher = course.getTeacher();
+        if (teacher != null) {
+            course.setInstructorName(resolveUserName(teacher));
+        }
+        return toResponse(course);
+    }
+
+    @Transactional
     public CourseResponse updateCourse(Long id, CourseRequest request) {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Course not found"));
@@ -134,10 +187,6 @@ public class CourseService {
             throw new BadRequestException("Course slug already exists");
         }
         applyRequest(course, request, slug);
-        if (course.getStatus() == CourseStatus.REJECTED) {
-            course.setStatus(CourseStatus.PENDING);
-            course.setRejectionReason(null);
-        }
         return toResponse(course);
     }
 
@@ -148,7 +197,16 @@ public class CourseService {
         course.setStatus(CourseStatus.APPROVED);
         course.setActive(true);
         course.setRejectionReason(null);
-        return toResponse(course);
+        CourseResponse response = toResponse(course);
+        // Send email notification
+        if (course.getTeacher() != null && course.getTeacher().getEmail() != null) {
+            try {
+                String html = buildApprovalEmail(course.getTitle(), course.getTeacher().getDisplayName());
+                emailService.sendHtml(course.getTeacher().getEmail(),
+                        "✅ Khóa học đã được phê duyệt: " + course.getTitle(), html);
+            } catch (Exception ignored) { /* don't fail the transaction */ }
+        }
+        return response;
     }
 
     @Transactional
@@ -158,14 +216,55 @@ public class CourseService {
         course.setStatus(CourseStatus.REJECTED);
         course.setActive(false);
         course.setRejectionReason(reason.trim());
-        return toResponse(course);
+        CourseResponse response = toResponse(course);
+        // Send email notification
+        if (course.getTeacher() != null && course.getTeacher().getEmail() != null) {
+            try {
+                String html = buildRejectionEmail(course.getTitle(), course.getTeacher().getDisplayName(), reason.trim());
+                emailService.sendHtml(course.getTeacher().getEmail(),
+                        "❌ Khóa học bị từ chối: " + course.getTitle(), html);
+            } catch (Exception ignored) { /* don't fail the transaction */ }
+        }
+        return response;
     }
+
+    private String buildApprovalEmail(String courseTitle, String teacherName) {
+        return "<div style='font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px'>" +
+                "<h2 style='color:#059669'>✅ Khóa học đã được phê duyệt!</h2>" +
+                "<p>Xin chào <b>" + (teacherName != null ? teacherName : "Giảng viên") + "</b>,</p>" +
+                "<p>Khóa học <b>" + courseTitle + "</b> của bạn đã được Admin phê duyệt và xuất bản thành công!</p>" +
+                "<p>Học viên có thể tìm thấy và đăng ký học khóa học của bạn ngay bây giờ.</p>" +
+                "<p style='color:#6B7280;font-size:13px;margin-top:32px'>EngMastery Platform</p>" +
+                "</div>";
+    }
+
+    private String buildRejectionEmail(String courseTitle, String teacherName, String reason) {
+        return "<div style='font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px'>" +
+                "<h2 style='color:#DC2626'>❌ Khóa học chưa được phê duyệt</h2>" +
+                "<p>Xin chào <b>" + (teacherName != null ? teacherName : "Giảng viên") + "</b>,</p>" +
+                "<p>Rất tiếc, khóa học <b>" + courseTitle + "</b> của bạn chưa được phê duyệt vì lý do sau:</p>" +
+                "<blockquote style='background:#FEF2F2;border-left:4px solid #DC2626;padding:12px 16px;color:#991B1B'>" + reason + "</blockquote>" +
+                "<p>Bạn có thể chỉnh sửa nội dung và gửi lại để kiểm duyệt.</p>" +
+                "<p style='color:#6B7280;font-size:13px;margin-top:32px'>EngMastery Platform</p>" +
+                "</div>";
+    }
+
 
     @Transactional
     public void deleteCourse(Long id) {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Course not found"));
         courseRepository.delete(course);
+    }
+
+    @Transactional(readOnly = true)
+    public CourseResponse getLearningContent(Long courseId, UserPrincipal principal) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new NotFoundException("Course not found"));
+        if (!courseEnrollmentRepository.existsByCourse_IdAndStudent_Id(courseId, principal.getId())) {
+            throw new BadRequestException("Bạn chưa mua khóa học này");
+        }
+        return toResponse(course, principal);
     }
 
     @Transactional
@@ -226,12 +325,30 @@ public class CourseService {
         return toResponse(course, principal);
     }
 
+    @Transactional(readOnly = true)
+    public List<CourseReviewResponse> getReviews(Long courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new NotFoundException("Course not found"));
+        return course.getReviews().stream()
+                .map(review -> CourseReviewResponse.builder()
+                        .studentName(review.getStudentName())
+                        .studentId(review.getStudentId())
+                        .rating(review.getRating())
+                        .comment(review.getComment())
+                        .createdAt(review.getCreatedAt())
+                        .build())
+                .toList();
+    }
+
+
     private void applyRequest(Course course, CourseRequest request, String slug) {
         course.setSlug(slug);
         course.setTitle(request.getTitle().trim());
         course.setDescription(request.getDescription().trim());
         course.setPrice(request.getPrice());
+        course.setDiscountPrice(request.getDiscountPrice());
         course.setThumbnailUrl(trimToNull(request.getThumbnailUrl()));
+
         course.setInstructorName(request.getInstructorName().trim());
         course.setLanguage(request.getLanguage().trim());
         course.setLevel(parseLevel(request.getLevel()));
@@ -246,10 +363,11 @@ public class CourseService {
         course.setSections(request.getSections().stream()
                 .map(section -> CourseSection.builder()
                         .title(section.getTitle().trim())
-                        .description(section.getDescription().trim())
+                        .description(trimToNull(section.getDescription()))
                         .skills(section.getSkills().stream().map(String::trim).toList())
                         .lessonCount(section.getLessonCount())
                         .duration(section.getDuration().trim())
+                        .videoUrl(trimToNull(section.getVideoUrl()))
                         .build())
                 .toList());
         course.setReviews(request.getReviews().stream()
@@ -278,7 +396,9 @@ public class CourseService {
                 .title(course.getTitle())
                 .description(course.getDescription())
                 .price(course.getPrice())
+                .discountPrice(course.getDiscountPrice())
                 .thumbnailUrl(course.getThumbnailUrl())
+
                 .instructorName(course.getInstructorName())
                 .language(course.getLanguage())
                 .level(course.getLevel().name())
@@ -305,6 +425,7 @@ public class CourseService {
                                 .skills(section.getSkills())
                                 .lessonCount(section.getLessonCount())
                                 .duration(section.getDuration())
+                                .videoUrl(section.getVideoUrl())
                                 .build())
                         .toList())
                 .reviews(course.getReviews().stream()

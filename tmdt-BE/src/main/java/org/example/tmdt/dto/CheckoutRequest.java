@@ -2,7 +2,7 @@ package org.example.tmdt.dto;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import org.example.tmdt.entity.PaymentMethod;
+import org.example.tmdt.enums.PaymentMethod;
 import lombok.Getter;
 import lombok.Setter;
 

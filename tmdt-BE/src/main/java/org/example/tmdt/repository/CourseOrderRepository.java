@@ -5,7 +5,7 @@ import java.util.Optional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.example.tmdt.entity.CourseOrder;
-import org.example.tmdt.entity.OrderStatus;
+import org.example.tmdt.enums.OrderStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

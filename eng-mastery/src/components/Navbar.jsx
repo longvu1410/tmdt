@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+
 import AuthModal from './AuthModal';
 import { clearTokens } from '../services/apiService';
 import { getCartCount } from '../services/cartUtils';
@@ -12,6 +13,8 @@ const Navbar = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [cartCount, setCartCount] = useState(getCartCount());
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+
 
   // Load user từ localStorage khi mount
   useEffect(() => {
@@ -49,7 +52,12 @@ const Navbar = () => {
 
   const handleAuthSuccess = (data) => {
     setUser(data.user);
+    // Redirect admin to dashboard after login
+    if (data.user?.roles?.includes('ROLE_ADMIN')) {
+      navigate('/admin');
+    }
   };
+
 
   const handleLogout = () => {
     clearTokens();
@@ -107,8 +115,9 @@ const Navbar = () => {
           {/* Nav Links */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
             <Link to="/" style={navLinkStyle}>Trang chủ</Link>
+            <Link to="/courses" style={navLinkStyle}>Khóa học</Link>
             
-            {!user?.roles?.includes('ROLE_TEACHER') && (
+            {user && !user?.roles?.includes('ROLE_TEACHER') && (
               <>
                 <Link to="/dashboard" style={navLinkStyle}>Khóa học của tôi</Link>
                 <Link to="/orders" style={navLinkStyle}>Đơn hàng</Link>
@@ -116,7 +125,10 @@ const Navbar = () => {
             )}
 
             {user?.roles?.includes('ROLE_TEACHER') && (
-              <Link to="/revenue" style={{ ...navLinkStyle, color: '#0056D2', fontWeight: 600 }}>Xem doanh thu</Link>
+              <>
+                <Link to="/teacher/courses" style={navLinkStyle}>Khóa học của tôi</Link>
+                <Link to="/revenue" style={{ ...navLinkStyle, color: '#0056D2', fontWeight: 600 }}>Xem doanh thu</Link>
+              </>
             )}
 
             <Link to="/cart" style={{ ...navLinkStyle, position: 'relative' }}>
@@ -174,6 +186,13 @@ const Navbar = () => {
                   </div>
                   {!user.roles?.includes('ROLE_TEACHER') && (
                     <Link to="/dashboard" onClick={() => setDropdownOpen(false)}
+                      style={{ display: 'block', padding: '12px 16px', fontSize: '14px', color: '#374151' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >📚 Khóa học của tôi</Link>
+                  )}
+                  {user.roles?.includes('ROLE_TEACHER') && (
+                    <Link to="/teacher/courses" onClick={() => setDropdownOpen(false)}
                       style={{ display: 'block', padding: '12px 16px', fontSize: '14px', color: '#374151' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}

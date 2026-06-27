@@ -31,4 +31,7 @@ public class CourseSectionRequest {
     @NotBlank
     @Size(max = 40)
     private String duration;
+
+    @Size(max = 500)
+    private String videoUrl;
 }

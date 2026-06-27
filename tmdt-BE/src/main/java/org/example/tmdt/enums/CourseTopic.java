@@ -1,4 +1,4 @@
-package org.example.tmdt.entity;
+package org.example.tmdt.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

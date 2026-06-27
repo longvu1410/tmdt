@@ -35,4 +35,7 @@ public class CourseSection {
 
     @Column(nullable = false, length = 40)
     private String duration;
+
+    @Column(length = 500)
+    private String videoUrl;
 }

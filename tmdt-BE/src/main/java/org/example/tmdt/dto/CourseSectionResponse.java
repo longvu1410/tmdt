@@ -13,4 +13,5 @@ public class CourseSectionResponse {
     private List<String> skills;
     private Integer lessonCount;
     private String duration;
+    private String videoUrl;
 }

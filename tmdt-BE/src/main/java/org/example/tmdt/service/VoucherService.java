@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.tmdt.dto.VoucherRequest;
 import org.example.tmdt.dto.VoucherResponse;
 import org.example.tmdt.entity.Voucher;
-import org.example.tmdt.entity.VoucherDiscountType;
+import org.example.tmdt.enums.VoucherDiscountType;
 import org.example.tmdt.exception.BadRequestException;
 import org.example.tmdt.exception.NotFoundException;
 import org.example.tmdt.repository.VoucherRepository;

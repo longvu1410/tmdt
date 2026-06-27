@@ -8,7 +8,9 @@ import org.example.tmdt.dto.CourseRequest;
 import org.example.tmdt.dto.CourseResponse;
 import org.example.tmdt.dto.CourseTopicResponse;
 import org.example.tmdt.dto.SubmitCourseReviewRequest;
+import org.example.tmdt.dto.CourseReviewResponse;
 import org.example.tmdt.security.UserPrincipal;
+
 import org.example.tmdt.service.CourseService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -51,6 +53,25 @@ public class CourseController {
         return courseService.getPendingCourses();
     }
 
+    @GetMapping("/admin-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<CourseResponse> getAllCoursesForAdmin() {
+        return courseService.getAllCoursesForAdmin();
+    }
+
+    @PutMapping("/{id}/toggle-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public CourseResponse toggleCourseActiveStatus(@PathVariable Long id) {
+        return courseService.toggleCourseActiveStatus(id);
+    }
+
+
+    @GetMapping("/my-courses")
+    @PreAuthorize("hasRole('TEACHER')")
+    public List<CourseResponse> getTeacherCourses(@AuthenticationPrincipal UserPrincipal principal) {
+        return courseService.getTeacherCourses(principal);
+    }
+
     @GetMapping("/{id}")
     public CourseResponse getCourseById(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) {
@@ -90,10 +111,25 @@ public class CourseController {
         return courseService.submitReview(id, request, principal);
     }
 
+    @GetMapping("/{id}/reviews")
+    public List<CourseReviewResponse> getReviews(@PathVariable Long id) {
+        return courseService.getReviews(id);
+    }
+
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public CourseResponse updateCourse(@PathVariable Long id, @Valid @RequestBody CourseRequest request) {
         return courseService.updateCourse(id, request);
+    }
+
+    @PutMapping("/{id}/teacher-update")
+    @PreAuthorize("hasRole('TEACHER')")
+    public CourseResponse teacherUpdateCourse(
+            @PathVariable Long id,
+            @Valid @RequestBody CourseRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return courseService.teacherUpdateCourse(id, request, principal);
     }
 
     @PostMapping("/{id}/approve")
@@ -113,5 +149,13 @@ public class CourseController {
     @PreAuthorize("hasRole('ADMIN')")
     public void deleteCourse(@PathVariable Long id) {
         courseService.deleteCourse(id);
+    }
+
+    @GetMapping("/{id}/learn")
+    @PreAuthorize("isAuthenticated()")
+    public CourseResponse getLearnContent(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return courseService.getLearningContent(id, principal);
     }
 }

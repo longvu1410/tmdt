@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../services/apiService';
+import { SubmitModal } from './MyComplaints';
+
 
 const formatPrice = (v) => {
   if (v === 0 || v == null) return '0đ';
@@ -29,6 +31,9 @@ const Dashboard = () => {
   const [myCourses, setMyCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [complaintCourse, setComplaintCourse] = useState(null); // course to complain about
+  const [complaintSuccess, setComplaintSuccess] = useState('');
+
 
   const user = (() => {
     try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
@@ -109,15 +114,20 @@ const Dashboard = () => {
           <h1 style={{ fontSize: '28px', fontWeight: 700 }}>Khóa học của tôi</h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <Link to="/complaints" style={{
+            color: '#DC2626', fontWeight: 600, fontSize: '14px',
+            padding: '8px 16px', border: '1px solid #DC2626', borderRadius: '6px',
+          }}>🚨 Khiếu nại của tôi</Link>
           <Link to="/orders" style={{
             color: '#0056D2', fontWeight: 600, fontSize: '14px',
             padding: '8px 16px', border: '1px solid #0056D2', borderRadius: '6px',
           }}>📦 Đơn hàng</Link>
-          <Link to="/" style={{
+          <Link to="/courses" style={{
             color: '#fff', background: '#0056D2', fontWeight: 600, fontSize: '14px',
             padding: '8px 16px', borderRadius: '6px',
           }}>Khám phá thêm →</Link>
         </div>
+
       </div>
 
       {/* Stats */}
@@ -225,7 +235,16 @@ const Dashboard = () => {
                   color: '#0056D2', fontSize: '13px', fontWeight: 500, textAlign: 'center',
                   padding: '6px',
                 }}>📄 Xem chi tiết</Link>
+                <button
+                  onClick={() => setComplaintCourse({ id: course.courseId, title: course.courseTitle })}
+                  style={{
+                    background: 'none', border: '1px solid #FECACA', color: '#DC2626',
+                    padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                    fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                  }}
+                >🚨 Khiếu nại</button>
               </div>
+
             </div>
           </div>
         ))}
@@ -248,6 +267,31 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Complaint Modal */}
+      {complaintCourse && (
+        <SubmitModal
+          course={complaintCourse}
+          onClose={() => setComplaintCourse(null)}
+          onSubmitted={() => {
+            setComplaintCourse(null);
+            setComplaintSuccess('Khiếu nại đã được gửi thành công! Chúng tôi sẽ xem xét và phản hồi sớm nhất.');
+            setTimeout(() => setComplaintSuccess(''), 5000);
+          }}
+        />
+      )}
+
+      {/* Success notification */}
+      {complaintSuccess && (
+        <div style={{
+          position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
+          background: '#D1FAE5', border: '1px solid #A7F3D0', padding: '14px 20px',
+          borderRadius: '10px', color: '#065F46', fontWeight: 600, fontSize: '14px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)', maxWidth: '360px',
+        }}>
+          ✅ {complaintSuccess}
+        </div>
+      )}
     </div>
   );
 };

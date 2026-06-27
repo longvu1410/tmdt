@@ -411,10 +411,30 @@ const AdminDashboard = () => {
   // Withdrawal States
   const [withdrawals, setWithdrawals] = useState([]);
   const [withdrawalStats, setWithdrawalStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
-  const [selectedWithdrawal, setSelectedWithdrawal] = useState(null); // Withdrawal item to process
-  const [withdrawalAction, setWithdrawalAction] = useState(''); // 'APPROVE' | 'REJECT'
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
+  const [withdrawalAction, setWithdrawalAction] = useState('');
   const [withdrawalNote, setWithdrawalNote] = useState('');
   const [processingWithdrawal, setProcessingWithdrawal] = useState(false);
+
+  // Complaint States
+  const [complaints, setComplaints] = useState([]);
+  const [complaintStats, setComplaintStats] = useState({ total: 0, pending: 0, reviewing: 0, resolved: 0, rejected: 0 });
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [complaintHandleForm, setComplaintHandleForm] = useState({ status: 'REVIEWING', adminResponse: '' });
+  const [processingComplaint, setProcessingComplaint] = useState(false);
+
+  // User Management States
+  const [users, setUsers] = useState([]);
+  const [userStats, setUserStats] = useState({ total: 0, active: 0, blocked: 0 });
+  const [processingUser, setProcessingUser] = useState(false);
+
+  // Course Management States
+  const [allCourses, setAllCourses] = useState([]);
+  const [courseManagementStats, setCourseManagementStats] = useState({ total: 0, active: 0, inactive: 0 });
+  const [processingCourseToggle, setProcessingCourseToggle] = useState(false);
+
+
+
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -466,15 +486,132 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  const fetchComplaints = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/complaints');
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setComplaints(list);
+      setComplaintStats({
+        total: list.length,
+        pending: list.filter(c => c.status === 'PENDING').length,
+        reviewing: list.filter(c => c.status === 'REVIEWING').length,
+        resolved: list.filter(c => c.status === 'RESOLVED').length,
+        rejected: list.filter(c => c.status === 'REJECTED').length,
+      });
+    } catch (e) { /* silent */ }
+  }, []);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/users');
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setUsers(list);
+      setUserStats({
+        total: list.length,
+        active: list.filter(u => u.enabled).length,
+        blocked: list.filter(u => !u.enabled).length
+      });
+    } catch (e) { /* silent */ }
+  }, []);
+
+  const fetchAllCoursesForAdmin = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/courses/admin-all');
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setAllCourses(list);
+      setCourseManagementStats({
+        total: list.length,
+        active: list.filter(c => c.active !== false).length,
+        inactive: list.filter(c => c.active === false).length,
+      });
+    } catch (e) { /* silent */ }
+  }, []);
+
   useEffect(() => {
     fetchPending();
     fetchWithdrawals();
-  }, [fetchPending, fetchWithdrawals]);
+    fetchComplaints();
+    fetchUsers();
+    fetchAllCoursesForAdmin();
+  }, [fetchPending, fetchWithdrawals, fetchComplaints, fetchUsers, fetchAllCoursesForAdmin]);
+
+
+
 
   const showSuccess = (msg) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 4000);
   };
+
+  const handleToggleUserStatus = async (userId) => {
+    setProcessingUser(true);
+    setError('');
+    try {
+      const res = await apiFetch(`/api/admin/users/${userId}/toggle-status`, {
+        method: 'PUT',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Thao tác thất bại');
+      }
+      showSuccess('✅ Cập nhật trạng thái tài khoản thành công');
+      fetchUsers();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setProcessingUser(false);
+    }
+  };
+
+  const handleUpdateUserRole = async (userId, newRole) => {
+    setProcessingUser(true);
+    setError('');
+    try {
+      const res = await apiFetch(`/api/admin/users/${userId}/role`, {
+        method: 'PUT',
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Cập nhật vai trò thất bại');
+      }
+      showSuccess('✅ Thay đổi vai trò người dùng thành công');
+      fetchUsers();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setProcessingUser(false);
+    }
+  };
+
+  const handleToggleCourseActive = async (courseId) => {
+    setProcessingCourseToggle(true);
+    setError('');
+    try {
+      const res = await apiFetch(`/api/courses/${courseId}/toggle-active`, {
+        method: 'PUT',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Cập nhật trạng thái khóa học thất bại');
+      }
+      showSuccess('✅ Cập nhật trạng thái hoạt động khóa học thành công');
+      fetchAllCoursesForAdmin();
+      fetchPending();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setProcessingCourseToggle(false);
+    }
+  };
+
+
 
   const handleApprove = async (courseId) => {
     try {
@@ -659,6 +796,27 @@ const AdminDashboard = () => {
           </button>
           <button
             onClick={() => {
+              setActiveTab('MANAGE_COURSES');
+              setSearchQuery('');
+              setFilterStatus('ALL');
+            }}
+            style={{
+              padding: '12px 20px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'MANAGE_COURSES' ? '3px solid #10B981' : '3px solid transparent',
+              color: activeTab === 'MANAGE_COURSES' ? '#10B981' : '#6B7280',
+              fontWeight: activeTab === 'MANAGE_COURSES' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '15px',
+              transition: 'all 0.2s'
+            }}
+          >
+            📁 Quản lý khóa học
+          </button>
+
+          <button
+            onClick={() => {
               setActiveTab('WITHDRAWALS');
               setSearchQuery('');
               setFilterStatus('ALL');
@@ -677,10 +835,51 @@ const AdminDashboard = () => {
           >
             💸 Yêu cầu rút tiền {withdrawalStats.pending > 0 && <span style={{ background: '#EF4444', color: '#fff', fontSize: '11px', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>{withdrawalStats.pending}</span>}
           </button>
+          <button
+            onClick={() => {
+              setActiveTab('COMPLAINTS');
+              setSearchQuery('');
+              setFilterStatus('ALL');
+            }}
+            style={{
+              padding: '12px 20px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'COMPLAINTS' ? '3px solid #DC2626' : '3px solid transparent',
+              color: activeTab === 'COMPLAINTS' ? '#DC2626' : '#6B7280',
+              fontWeight: activeTab === 'COMPLAINTS' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '15px',
+              transition: 'all 0.2s'
+            }}
+          >
+            🚨 Khiếu nại {complaintStats.pending > 0 && <span style={{ background: '#EF4444', color: '#fff', fontSize: '11px', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>{complaintStats.pending}</span>}
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('USERS');
+              setSearchQuery('');
+              setFilterStatus('ALL');
+            }}
+            style={{
+              padding: '12px 20px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'USERS' ? '3px solid #7C3AED' : '3px solid transparent',
+              color: activeTab === 'USERS' ? '#7C3AED' : '#6B7280',
+              fontWeight: activeTab === 'USERS' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '15px',
+              transition: 'all 0.2s'
+            }}
+          >
+            👤 Quản lý tài khoản
+          </button>
         </div>
 
+
         {/* Stats Row */}
-        {activeTab === 'COURSES' ? (
+        {activeTab === 'COURSES' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             {[
               { label: 'Tổng khóa học', value: stats.total, icon: '📚', color: '#4F46E5', bg: '#EEF2FF' },
@@ -710,7 +909,41 @@ const AdminDashboard = () => {
               </div>
             ))}
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'MANAGE_COURSES' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            {[
+              { label: 'Tổng khóa học', value: courseManagementStats.total, icon: '📚', color: '#4F46E5', bg: '#EEF2FF' },
+              { label: 'Đang hiển thị', value: courseManagementStats.active, icon: '✅', color: '#059669', bg: '#ECFDF5' },
+              { label: 'Đang ẩn', value: courseManagementStats.inactive, icon: '🚫', color: '#DC2626', bg: '#FEF2F2' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: '#fff', border: '1px solid #E5E7EB',
+                borderRadius: '12px', padding: '20px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ color: '#6B7280', fontSize: '12px', fontWeight: 600, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {s.label}
+                    </p>
+                    <p style={{ color: s.color, fontSize: '32px', fontWeight: 800, margin: 0, lineHeight: 1 }}>
+                      {s.value}
+                    </p>
+                  </div>
+                  <div style={{
+                    width: '44px', height: '44px', background: s.bg, borderRadius: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+                  }}>{s.icon}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+
+        {activeTab === 'WITHDRAWALS' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             {[
               { label: 'Tổng yêu cầu', value: withdrawalStats.total, icon: '💸', color: '#4F46E5', bg: '#EEF2FF' },
@@ -742,6 +975,70 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {activeTab === 'COMPLAINTS' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            {[
+              { label: 'Tổng khiếu nại', value: complaintStats.total, icon: '🚨', color: '#DC2626', bg: '#FEF2F2' },
+              { label: 'Chờ xử lý', value: complaintStats.pending, icon: '⏳', color: '#D97706', bg: '#FFFBEB' },
+              { label: 'Đang xem xét', value: complaintStats.reviewing, icon: '🔍', color: '#1E40AF', bg: '#DBEAFE' },
+              { label: 'Đã giải quyết', value: complaintStats.resolved, icon: '✅', color: '#059669', bg: '#ECFDF5' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: '#fff', border: '1px solid #E5E7EB',
+                borderRadius: '12px', padding: '20px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ color: '#6B7280', fontSize: '12px', fontWeight: 600, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {s.label}
+                    </p>
+                    <p style={{ color: s.color, fontSize: '32px', fontWeight: 800, margin: 0, lineHeight: 1 }}>
+                      {s.value}
+                    </p>
+                  </div>
+                  <div style={{
+                    width: '44px', height: '44px', background: s.bg, borderRadius: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+                  }}>{s.icon}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'USERS' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            {[
+              { label: 'Tổng tài khoản', value: userStats.total, icon: '👥', color: '#7C3AED', bg: '#F5F3FF' },
+              { label: 'Đang hoạt động', value: userStats.active, icon: '✅', color: '#059669', bg: '#ECFDF5' },
+              { label: 'Bị khóa', value: userStats.blocked, icon: '🚫', color: '#DC2626', bg: '#FEF2F2' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: '#fff', border: '1px solid #E5E7EB',
+                borderRadius: '12px', padding: '20px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ color: '#6B7280', fontSize: '12px', fontWeight: 600, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {s.label}
+                    </p>
+                    <p style={{ color: s.color, fontSize: '32px', fontWeight: 800, margin: 0, lineHeight: 1 }}>
+                      {s.value}
+                    </p>
+                  </div>
+                  <div style={{
+                    width: '44px', height: '44px', background: s.bg, borderRadius: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+                  }}>{s.icon}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+
         {/* Panel Box */}
         <div style={{
           background: '#fff', border: '1px solid #E5E7EB', borderRadius: '16px', overflow: 'hidden',
@@ -753,14 +1050,14 @@ const AdminDashboard = () => {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
           }}>
             <h2 style={{ color: '#111827', fontSize: '16px', fontWeight: 700, margin: 0 }}>
-              {activeTab === 'COURSES' ? '📋 Danh sách khóa học chờ duyệt' : '📋 Danh sách yêu cầu rút tiền'}
+              {activeTab === 'COURSES' ? '📋 Danh sách khóa học chờ duyệt' : activeTab === 'WITHDRAWALS' ? '📋 Danh sách yêu cầu rút tiền' : activeTab === 'COMPLAINTS' ? '📋 Danh sách khiếu nại' : '📋 Danh sách tài khoản người dùng'}
             </h2>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               {/* Search */}
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  placeholder={activeTab === 'COURSES' ? "Tìm kiếm khóa học..." : "Tìm giảng viên, STK..."}
+                  placeholder={activeTab === 'COURSES' ? "Tìm kiếm khóa học..." : activeTab === 'WITHDRAWALS' ? "Tìm giảng viên, STK..." : activeTab === 'COMPLAINTS' ? "Tìm học viên, khóa học..." : "Tìm tên, email..."}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{
@@ -780,14 +1077,24 @@ const AdminDashboard = () => {
                   color: '#374151', padding: '8px 12px', fontSize: '13px', outline: 'none', cursor: 'pointer',
                 }}
               >
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="PENDING">Chờ duyệt</option>
-                <option value="APPROVED">Đã duyệt</option>
-                <option value="REJECTED">Từ chối</option>
+                {activeTab === 'USERS' ? (
+                  <>
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="ACTIVE">Đang hoạt động</option>
+                    <option value="BLOCKED">Bị khóa</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="PENDING">Chờ duyệt</option>
+                    <option value="APPROVED">Đã duyệt</option>
+                    <option value="REJECTED">Từ chối</option>
+                  </>
+                )}
               </select>
               {/* Refresh */}
               <button
-                onClick={activeTab === 'COURSES' ? fetchPending : fetchWithdrawals}
+                onClick={activeTab === 'COURSES' ? fetchPending : activeTab === 'MANAGE_COURSES' ? fetchAllCoursesForAdmin : activeTab === 'WITHDRAWALS' ? fetchWithdrawals : activeTab === 'COMPLAINTS' ? fetchComplaints : fetchUsers}
                 disabled={loading}
                 style={{
                   background: '#fff', border: '1px solid #D1D5DB', color: '#374151',
@@ -801,8 +1108,9 @@ const AdminDashboard = () => {
             </div>
           </div>
 
+
           {/* Render Active Tab Table */}
-          {activeTab === 'COURSES' ? (
+          {activeTab === 'COURSES' && (
             /* --- COURSES PANEL --- */
             <>
               {loading ? (
@@ -850,68 +1158,59 @@ const AdminDashboard = () => {
                           <td style={{ padding: '14px 16px', minWidth: '240px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               {course.thumbnailUrl ? (
-                                <img src={course.thumbnailUrl} alt=""
-                                  style={{ width: '48px', height: '32px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
+                                <img src={course.thumbnailUrl} alt={course.title}
+                                  style={{ width: '64px', height: '36px', borderRadius: '4px', objectFit: 'cover', display: 'block' }} />
                               ) : (
-                                <div style={{
-                                  width: '48px', height: '32px', background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
-                                  borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  fontSize: '16px', flexShrink: 0,
-                                }}>🎓</div>
+                                <div style={{ width: '64px', height: '36px', borderRadius: '4px', background: 'linear-gradient(135deg, #E8F1FF, #D1E3FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>📘</div>
                               )}
-                              <div style={{ minWidth: 0 }}>
-                                <p style={{
-                                  color: '#111827', fontSize: '13px', fontWeight: 600,
-                                  margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                  maxWidth: '200px',
-                                }}>{course.title}</p>
-                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                  <LevelBadge level={course.level} />
-                                  <span style={{ color: '#9CA3AF', fontSize: '11px' }}>{course.topicName}</span>
-                                </div>
+                              <div>
+                                <h4 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: '#111827' }}>
+                                  {course.title}
+                                </h4>
+                                <span style={{ color: '#9CA3AF', fontSize: '11.5px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+                                  {course.levelLabel || course.level}
+                                </span>
                               </div>
                             </div>
                           </td>
-                          <td style={{ padding: '14px 16px' }}>
-                            <p style={{ color: '#374151', fontSize: '13px', margin: '0 0 2px', fontWeight: 500 }}>
-                              {course.teacherName || course.instructorName}
-                            </p>
-                            <p style={{ color: '#9CA3AF', fontSize: '11px', margin: 0 }}>ID: {course.teacherId}</p>
+                          <td style={{ padding: '14px 16px', color: '#4B5563', fontSize: '13.5px' }}>
+                            {course.instructorName}
                           </td>
                           <td style={{ padding: '14px 16px' }}>
-                            <span style={{ color: '#4F46E5', fontWeight: 700, fontSize: '14px' }}>
-                              {course.price > 0 ? `${course.price.toLocaleString('vi-VN')}₫` : 'Miễn phí'}
+                            <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>
+                              {course.price === 0 ? 'Miễn phí' : formatCurrency(course.price)}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 16px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ color: '#6B7280', fontSize: '12px' }}>📚 {course.lessonCount} bài · ⏱️ {course.totalDuration}</span>
-                              <span style={{ color: '#6B7280', fontSize: '12px' }}>👥 {course.studentCount} học viên</span>
-                            </div>
+                          <td style={{ padding: '14px 16px', color: '#6B7280', fontSize: '12.5px', lineHeight: 1.4 }}>
+                            <div>⏱️ {course.totalDuration}</div>
+                            <div>📝 {course.lessonCount} bài học</div>
                           </td>
                           <td style={{ padding: '14px 16px' }}>
-                            <StatusBadge status={course.status} />
+                            <span style={{
+                              background: '#FEF3C7', color: '#92400E',
+                              padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
+                            }}>
+                              ⏳ Chờ duyệt
+                            </span>
                           </td>
                           <td style={{ padding: '14px 16px' }}>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <button
                                 onClick={() => setSelectedCourse(course)}
                                 style={{
-                                  background: '#F9FAFB', border: '1px solid #D1D5DB', color: '#374151',
+                                  background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB',
                                   padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
-                                  whiteSpace: 'nowrap',
+                                  whiteSpace: 'nowrap', fontWeight: 600,
                                 }}
-                              >👁️ Chi tiết</button>
-                              {course.status === 'PENDING' && (
-                                <button
-                                  onClick={() => handleApprove(course.id)}
-                                  style={{
-                                    background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669',
-                                    padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >✅ Duyệt</button>
-                              )}
+                              >🔍 Chi tiết</button>
+                              <button
+                                onClick={() => handleApprove(course.id)}
+                                style={{
+                                  background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669',
+                                  padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+                                  whiteSpace: 'nowrap', fontWeight: 600,
+                                }}
+                              >✅ Duyệt</button>
                             </div>
                           </td>
                         </tr>
@@ -938,7 +1237,116 @@ const AdminDashboard = () => {
                 </div>
               )}
             </>
-          ) : (
+          )}
+
+          {activeTab === 'MANAGE_COURSES' && (
+            <>
+              {loading ? (
+                <div style={{ padding: '60px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '16px', animation: 'pulse 1.5s infinite' }}>⏳</div>
+                  <p style={{ color: '#9CA3AF' }}>Đang tải danh sách khóa học...</p>
+                </div>
+              ) : allCourses.length === 0 ? (
+                <div style={{ padding: '60px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '16px' }}>📭</div>
+                  <p style={{ color: '#6B7280', marginBottom: '8px' }}>Chưa có khóa học nào</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
+                    <thead>
+                      <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>ID</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Khóa học</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Giảng viên</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Giá</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Trạng thái duyệt</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Hiển thị</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allCourses.filter(c => {
+                        const q = searchQuery.toLowerCase();
+                        const matchSearch = !searchQuery || c.title?.toLowerCase().includes(q) || c.instructorName?.toLowerCase().includes(q);
+                        const matchStatus = filterStatus === 'ALL' || (filterStatus === 'ACTIVE' ? c.active !== false : c.active === false);
+                        return matchSearch && matchStatus;
+                      }).map((c) => {
+                        const statusColors = {
+                          PENDING: { color: '#D97706', bg: '#FFFBEB', label: 'Chờ duyệt' },
+                          APPROVED: { color: '#059669', bg: '#ECFDF5', label: 'Đã duyệt' },
+                          REJECTED: { color: '#DC2626', bg: '#FEF2F2', label: 'Từ chối' },
+                        };
+                        const st = statusColors[c.status] || { color: '#374151', bg: '#F3F4F6', label: c.status };
+                        return (
+                          <tr key={c.id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background 0.15s' }}>
+                            <td style={{ padding: '14px 16px', color: '#9CA3AF' }}>#{c.id}</td>
+                            <td style={{ padding: '14px 16px', fontWeight: 600 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {c.thumbnailUrl ? (
+                                  <img src={c.thumbnailUrl} alt={c.title} style={{ width: '40px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '40px', height: '24px', borderRadius: '4px', background: 'linear-gradient(135deg, #E8F1FF, #D1E3FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>📘</div>
+                                )}
+                                <span>{c.title}</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '14px 16px', color: '#4B5563' }}>{c.instructorName}</td>
+                            <td style={{ padding: '14px 16px', fontWeight: 700 }}>
+                              {c.discountPrice ? (
+                                <div>
+                                  <div style={{ color: '#DC2626' }}>{formatCurrency(c.discountPrice)}</div>
+                                  <div style={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '11px' }}>{formatCurrency(c.price)}</div>
+                                </div>
+                              ) : (
+                                <div>{formatCurrency(c.price)}</div>
+                              )}
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={{ color: st.color, background: st.bg, padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}>
+                                {st.label}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={{
+                                background: c.active !== false ? '#D1FAE5' : '#FEE2E2',
+                                color: c.active !== false ? '#065F46' : '#991B1B',
+                                padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
+                              }}>
+                                {c.active !== false ? '✓ Đang mở' : '🚫 Đang ẩn'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <button
+                                disabled={processingCourseToggle}
+                                onClick={() => handleToggleCourseActive(c.id)}
+                                style={{
+                                  background: c.active !== false ? '#FEF2F2' : '#EFF6FF',
+                                  border: '1.5px solid',
+                                  borderColor: c.active !== false ? '#FECACA' : '#BFDBFE',
+                                  color: c.active !== false ? '#DC2626' : '#2563EB',
+                                  padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                  fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {c.active !== false ? '🔒 Ẩn' : '🔓 Hiển thị'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ padding: '12px 24px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#9CA3AF', fontSize: '13px' }}>Tổng cộng {allCourses.length} khóa học</span>
+                <span style={{ color: '#059669', fontSize: '13px', fontWeight: 600 }}>✓ {courseManagementStats.active} hiển thị / 🚫 {courseManagementStats.inactive} ẩn</span>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'WITHDRAWALS' && (
             /* --- WITHDRAWALS PANEL --- */
             <>
               {loading ? (
@@ -1069,8 +1477,163 @@ const AdminDashboard = () => {
               )}
             </>
           )}
+
+          {/* ── COMPLAINTS PANEL ── */}
+          {activeTab === 'COMPLAINTS' && (
+            <>
+              {complaints.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📭</div>
+                  <p style={{ fontSize: '15px' }}>Chưa có khiếu nại nào</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {complaints.filter(c => {
+                    const q = searchQuery.toLowerCase();
+                    const matchSearch = !searchQuery || c.title?.toLowerCase().includes(q) || c.studentName?.toLowerCase().includes(q) || c.courseTitle?.toLowerCase().includes(q);
+                    const matchStatus = filterStatus === 'ALL' || c.status === filterStatus;
+                    return matchSearch && matchStatus;
+                  }).map((c, idx) => {
+                    const statusMap = {
+                      PENDING: { bg: '#FEF3C7', color: '#92400E', label: '⏳ Chờ xử lý' },
+                      REVIEWING: { bg: '#DBEAFE', color: '#1E40AF', label: '🔍 Đang xem xét' },
+                      RESOLVED: { bg: '#D1FAE5', color: '#065F46', label: '✅ Đã giải quyết' },
+                      REJECTED: { bg: '#FEE2E2', color: '#991B1B', label: '❌ Không chấp nhận' },
+                    };
+                    const st = statusMap[c.status] || { bg: '#F3F4F6', color: '#374151', label: c.status };
+                    return (
+                      <div key={c.id} style={{ borderBottom: idx < complaints.length - 1 ? '1px solid #F3F4F6' : 'none', padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>#{c.id} — {c.title}</span>
+                              <span style={{ background: st.bg, color: st.color, padding: '2px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}>{st.label}</span>
+                            </div>
+                            <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 4px' }}>
+                              👤 {c.studentName} &nbsp;·&nbsp; 📚 {c.courseTitle} &nbsp;·&nbsp; {c.typeName}
+                            </p>
+                            <p style={{ fontSize: '12px', color: '#9CA3AF', margin: 0 }}>
+                              {new Date(c.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            {c.adminResponse && (
+                              <p style={{ fontSize: '13px', color: '#1D4ED8', marginTop: '6px', background: '#EFF6FF', padding: '6px 10px', borderRadius: '6px', display: 'inline-block' }}>
+                                💬 {c.adminResponse.length > 80 ? c.adminResponse.slice(0, 80) + '...' : c.adminResponse}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => { setSelectedComplaint(c); setComplaintHandleForm({ status: c.status === 'PENDING' ? 'REVIEWING' : c.status, adminResponse: c.adminResponse || '' }); }}
+                            style={{ padding: '8px 16px', background: c.status === 'PENDING' ? '#DC2626' : '#6B7280', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {c.status === 'PENDING' ? '🚨 Xử lý' : '✏️ Sửa'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ padding: '12px 24px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#9CA3AF', fontSize: '13px' }}>Tổng {complaints.length} khiếu nại</span>
+                {complaintStats.pending > 0 && <span style={{ color: '#DC2626', fontSize: '13px', fontWeight: 600 }}>🚨 {complaintStats.pending} chờ xử lý</span>}
+              </div>
+            </>
+          )}
+
+          {/* ── USERS PANEL ── */}
+          {activeTab === 'USERS' && (
+            <>
+              {users.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>👥</div>
+                  <p style={{ fontSize: '15px' }}>Chưa có tài khoản nào trong hệ thống</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
+                    <thead>
+                      <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>ID</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Tài khoản</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Email</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Vai trò</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Trạng thái</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Ngày đăng ký</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.filter(u => {
+                        const q = searchQuery.toLowerCase();
+                        const matchSearch = !searchQuery || u.username?.toLowerCase().includes(q) || u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+                        const matchStatus = filterStatus === 'ALL' || (filterStatus === 'ACTIVE' ? u.enabled : !u.enabled);
+                        return matchSearch && matchStatus;
+                      }).map((u) => (
+                        <tr key={u.id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background 0.15s' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: 500 }}>#{u.id}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <div><strong>{u.displayName}</strong></div>
+                            <div style={{ color: '#6B7280', fontSize: '12px' }}>@{u.username}</div>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: '#4B5563' }}>{u.email}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <select
+                              value={u.roles[0] || 'ROLE_STUDENT'}
+                              disabled={processingUser}
+                              onChange={(e) => handleUpdateUserRole(u.id, e.target.value)}
+                              style={{
+                                background: '#FFF', border: '1px solid #D1D5DB', borderRadius: '6px',
+                                padding: '4px 8px', fontSize: '12.5px', outline: 'none', cursor: 'pointer',
+                              }}
+                            >
+                              <option value="ROLE_STUDENT">Học viên (Student)</option>
+                              <option value="ROLE_TEACHER">Giảng viên (Teacher)</option>
+                              <option value="ROLE_ADMIN">Quản trị viên (Admin)</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{
+                              background: u.enabled ? '#D1FAE5' : '#FEE2E2',
+                              color: u.enabled ? '#065F46' : '#991B1B',
+                              padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
+                            }}>
+                              {u.enabled ? '✓ Hoạt động' : '🚫 Đã khóa'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: '#6B7280' }}>
+                            {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '—'}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <button
+                              disabled={processingUser}
+                              onClick={() => handleToggleUserStatus(u.id)}
+                              style={{
+                                background: u.enabled ? '#FEF2F2' : '#EFF6FF',
+                                border: '1.5px solid',
+                                borderColor: u.enabled ? '#FECACA' : '#BFDBFE',
+                                color: u.enabled ? '#DC2626' : '#2563EB',
+                                padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {u.enabled ? '🔒 Khóa' : '🔓 Mở khóa'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ padding: '12px 24px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#9CA3AF', fontSize: '13px' }}>Tổng cộng {users.length} tài khoản</span>
+                <span style={{ color: '#059669', fontSize: '13px', fontWeight: 600 }}>✓ {userStats.active} hoạt động / 🚫 {userStats.blocked} khóa</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+
 
       {/* Course Detail Modal */}
       {selectedCourse && (
@@ -1186,6 +1749,75 @@ const AdminDashboard = () => {
         </div>
       )}
 
+
+      {/* ── COMPLAINT HANDLE MODAL ── */}
+      {selectedComplaint && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', backdropFilter: 'blur(4px)' }}
+          onClick={e => e.target === e.currentTarget && setSelectedComplaint(null)}>
+          <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '620px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E5E7EB', background: '#FEF2F2', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#DC2626' }}>🚨 Xử lý khiếu nại #{selectedComplaint.id}</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6B7280' }}>{selectedComplaint.courseTitle} — {selectedComplaint.studentName}</p>
+              </div>
+              <button onClick={() => setSelectedComplaint(null)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#9CA3AF', cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, fontSize: '14px', margin: '0 0 6px', color: '#111827' }}>{selectedComplaint.title}</p>
+                <p style={{ fontSize: '13px', color: '#4B5563', margin: '0 0 8px', lineHeight: 1.6 }}>{selectedComplaint.content}</p>
+                <p style={{ fontSize: '12px', color: '#9CA3AF', margin: 0 }}>Loại: {selectedComplaint.typeName}</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>Cập nhật trạng thái</label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {[
+                      { val: 'REVIEWING', label: '🔍 Đang xem xét', color: '#1E40AF', bg: '#DBEAFE' },
+                      { val: 'RESOLVED', label: '✅ Đã giải quyết', color: '#065F46', bg: '#D1FAE5' },
+                      { val: 'REJECTED', label: '❌ Không chấp nhận', color: '#991B1B', bg: '#FEE2E2' },
+                    ].map(opt => (
+                      <button key={opt.val} type="button" onClick={() => setComplaintHandleForm(f => ({ ...f, status: opt.val }))}
+                        style={{ padding: '8px 14px', borderRadius: '6px', border: '2px solid', borderColor: complaintHandleForm.status === opt.val ? opt.color : '#E5E7EB', background: complaintHandleForm.status === opt.val ? opt.bg : '#fff', color: opt.color, fontWeight: 600, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '14px', marginBottom: '6px' }}>Phản hồi cho học viên <span style={{ color: '#DC2626' }}>*</span></label>
+                  <textarea value={complaintHandleForm.adminResponse}
+                    onChange={e => setComplaintHandleForm(f => ({ ...f, adminResponse: e.target.value }))}
+                    placeholder="Nhập phản hồi chi tiết cho học viên..." rows={4}
+                    style={{ width: '100%', border: '1px solid #D1D5DB', borderRadius: '8px', padding: '10px 12px', fontSize: '14px', outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setSelectedComplaint(null)} style={{ flex: 1, padding: '12px', border: '1px solid #D1D5DB', color: '#6B7280', background: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Hủy</button>
+                  <button
+                    disabled={processingComplaint || !complaintHandleForm.adminResponse.trim()}
+                    onClick={async () => {
+                      if (!complaintHandleForm.adminResponse.trim()) return;
+                      setProcessingComplaint(true);
+                      try {
+                        const res = await apiFetch(`/api/complaints/${selectedComplaint.id}/handle`, { method: 'PUT', body: JSON.stringify(complaintHandleForm) });
+                        if (!res.ok) throw new Error('Xử lý thất bại');
+                        setSelectedComplaint(null);
+                        setComplaintHandleForm({ status: 'REVIEWING', adminResponse: '' });
+                        showSuccess('✅ Đã xử lý khiếu nại thành công, đã gửi email cho học viên');
+                        fetchComplaints();
+                      } catch (e) { setError(e.message); }
+                      finally { setProcessingComplaint(false); }
+                    }}
+                    style={{ flex: 2, padding: '12px', background: '#DC2626', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '14px', opacity: processingComplaint || !complaintHandleForm.adminResponse.trim() ? 0.6 : 1 }}>
+                    {processingComplaint ? 'Đang xử lý...' : '🚨 Lưu phản hồi & gửi email'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1193,6 +1825,7 @@ const AdminDashboard = () => {
         @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
+
     </div>
   );
 };

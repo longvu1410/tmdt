@@ -14,28 +14,45 @@ import CreateCourse from './pages/CreateCourse';
 import Orders from './pages/Orders';
 import AdminDashboard from './pages/AdminDashboard';
 import TeacherRevenue from './pages/TeacherRevenue';
+import TeacherCourses from './pages/TeacherCourses';
+import EditCourse from './pages/EditCourse';
+import CoursesPage from './pages/CoursesPage';
+import MyComplaints from './pages/MyComplaints';
+
 
 function App() {
   return (
     <Router>
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
         <Navbar />
-        <main style={{ flex: 1, maxWidth: '1340px', width: '100%', margin: '0 auto', padding: '32px 16px' }}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/course/:id" element={<CourseDetail />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/learn/:courseId" element={<VideoLearning />} />
-            <Route path="/test/:courseId" element={<EntryTest />} />
-            <Route path="/message/:teacherId" element={<PrivateMessage />} />
-            <Route path="/api/auth/verify-email" element={<VerifyEmail />} />
-            <Route path="/create-course" element={<CreateCourse />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/revenue" element={<TeacherRevenue />} />
-          </Routes>
-        </main>
+        <Routes>
+          {/* Full-width routes (no padding container) */}
+          <Route path="/learn/:courseId" element={<VideoLearning />} />
+
+          {/* Padded/centered routes */}
+          <Route path="/*" element={
+            <main style={{ flex: 1, maxWidth: '1340px', width: '100%', margin: '0 auto', padding: '32px 16px' }}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/courses" element={<CoursesPage />} />
+                <Route path="/complaints" element={<MyComplaints />} />
+
+                <Route path="/course/:id" element={<CourseDetail />} />
+                <Route path="/cart" element={<Cart />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/test/:courseId" element={<EntryTest />} />
+                <Route path="/message/:teacherId" element={<PrivateMessage />} />
+                <Route path="/api/auth/verify-email" element={<VerifyEmail />} />
+                <Route path="/create-course" element={<CreateCourse />} />
+                <Route path="/orders" element={<Orders />} />
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/revenue" element={<TeacherRevenue />} />
+                <Route path="/teacher/courses" element={<TeacherCourses />} />
+                <Route path="/teacher/edit-course/:id" element={<EditCourse />} />
+              </Routes>
+            </main>
+          } />
+        </Routes>
         <Footer />
       </div>
     </Router>

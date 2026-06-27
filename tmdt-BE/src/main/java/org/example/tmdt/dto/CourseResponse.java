@@ -14,6 +14,8 @@ public class CourseResponse {
     private String title;
     private String description;
     private BigDecimal price;
+    private BigDecimal discountPrice;
+
     private String thumbnailUrl;
     private String instructorName;
     private String language;

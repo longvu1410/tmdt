@@ -19,6 +19,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.example.tmdt.enums.OrderStatus;
+import org.example.tmdt.enums.PaymentMethod;
 
 @Entity
 @Table(name = "course_orders")

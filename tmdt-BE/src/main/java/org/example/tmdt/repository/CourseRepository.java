@@ -3,8 +3,8 @@ package org.example.tmdt.repository;
 import java.util.List;
 import java.util.Optional;
 import org.example.tmdt.entity.Course;
-import org.example.tmdt.entity.CourseStatus;
-import org.example.tmdt.entity.CourseTopic;
+import org.example.tmdt.enums.CourseStatus;
+import org.example.tmdt.enums.CourseTopic;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
@@ -22,4 +22,6 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     Optional<Course> findByIdAndActiveTrueAndStatus(Long id, CourseStatus status);
 
     Optional<Course> findBySlugAndActiveTrueAndStatus(String slug, CourseStatus status);
+
+    List<Course> findByTeacher_IdOrderByCreatedAtDesc(Long teacherId);
 }

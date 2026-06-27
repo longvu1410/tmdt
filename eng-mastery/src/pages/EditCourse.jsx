@@ -1,18 +1,13 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../services/apiService';
 
 // ── Helpers ──────────────────────────────────────────────────────
-const user = () => {
+const getUser = () => {
   try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
 };
 
-const isTeacher = () => {
-  const u = user();
-  return u?.roles?.includes('ROLE_TEACHER');
-};
-
-// ── Sub-components ───────────────────────────────────────────────
+// ── Sub-components (same style as CreateCourse) ───────────────────
 const SectionHeader = ({ children }) => (
   <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#111827', marginBottom: '16px', paddingBottom: '10px', borderBottom: '2px solid #E5E7EB' }}>
     {children}
@@ -40,7 +35,6 @@ const textareaStyle = {
   boxSizing: 'border-box', resize: 'vertical', minHeight: '80px',
 };
 
-// ── Tag List Input (outcomes / benefits) ─────────────────────────
 const TagListInput = ({ items, onChange, placeholder }) => {
   const [draft, setDraft] = useState('');
   const add = () => {
@@ -74,13 +68,9 @@ const TagListInput = ({ items, onChange, placeholder }) => {
   );
 };
 
-// ── Skill Input (for sections) ──────────────────────────────────
 const SkillInput = ({ onAdd }) => {
   const [draft, setDraft] = useState('');
-  const add = () => {
-    const v = draft.trim();
-    if (v) { onAdd(v); setDraft(''); }
-  };
+  const add = () => { const v = draft.trim(); if (v) { onAdd(v); setDraft(''); } };
   return (
     <div style={{ display: 'flex', gap: '8px' }}>
       <input value={draft} onChange={e => setDraft(e.target.value)}
@@ -96,29 +86,66 @@ const SkillInput = ({ onAdd }) => {
 };
 
 // ── Main Component ───────────────────────────────────────────────
-const CreateCourse = () => {
+const EditCourse = () => {
+  const { id } = useParams();
   const navigate = useNavigate();
+  const currentUser = getUser();
+
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-
-  const currentUser = user();
-
-  const [form, setForm] = useState({
-    slug: '', title: '', description: '', price: '', discountPrice: '',
-    thumbnailUrl: '', instructorName: currentUser?.displayName || currentUser?.username || '',
-    language: 'Vietnamese', level: 'BEGINNER',
-    studentCount: 0, lessonCount: 1, totalDuration: '', rating: 5, ratingCount: 0,
-    outcomes: [], benefits: [], active: true,
-  });
-
-
-  const [sections, setSections] = useState([{ title: '', lessonCount: 1, duration: '', description: '', skills: [], videoUrl: '' }]);
+  const [form, setForm] = useState(null);
+  const [sections, setSections] = useState([]);
   const [expandedSection, setExpandedSection] = useState(0);
+
+  // Load existing course data
+  useEffect(() => {
+    const fetchCourse = async () => {
+      try {
+        const res = await apiFetch(`/api/courses/${id}`);
+        if (!res.ok) throw new Error('Không tìm thấy khóa học');
+        const data = await res.json();
+        setForm({
+          slug: data.slug || '',
+          title: data.title || '',
+          description: data.description || '',
+          price: data.price?.toString() || '',
+          discountPrice: data.discountPrice?.toString() || '',
+          thumbnailUrl: data.thumbnailUrl || '',
+          instructorName: data.instructorName || '',
+          language: data.language || 'Vietnamese',
+          level: data.level || 'BEGINNER',
+          topic: data.topic || '',
+          studentCount: data.studentCount || 0,
+          lessonCount: data.lessonCount || 1,
+          totalDuration: data.totalDuration || '',
+          rating: data.rating || 5,
+          ratingCount: data.ratingCount || 0,
+          outcomes: data.outcomes || [],
+          benefits: data.benefits || [],
+          active: data.active !== false,
+        });
+
+        setSections((data.sections || []).map(s => ({
+          title: s.title || '',
+          lessonCount: s.lessonCount || 1,
+          duration: s.duration || '',
+          description: s.description || '',
+          skills: s.skills || [],
+          videoUrl: s.videoUrl || '',
+        })));
+      } catch (err) {
+        setError(err.message || 'Có lỗi khi tải dữ liệu khóa học');
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchCourse();
+  }, [id]);
 
   const setField = (key, value) => setForm(f => ({ ...f, [key]: value }));
 
-  // Section handlers
   const addSection = () => {
     const newIdx = sections.length;
     setSections(s => [...s, { title: '', lessonCount: 1, duration: '', description: '', skills: [], videoUrl: '' }]);
@@ -139,7 +166,6 @@ const CreateCourse = () => {
     setSections(s => s.map((sec, idx) => idx === i ? { ...sec, skills: sec.skills.filter((_, j) => j !== si) } : sec));
   };
 
-  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title || !form.slug || !form.description || !form.price) {
@@ -176,63 +202,76 @@ const CreateCourse = () => {
         sections: sections.filter(s => s.title),
       };
 
-      const res = await apiFetch('/api/courses', {
-        method: 'POST',
+      const res = await apiFetch(`/api/courses/${id}/teacher-update`, {
+        method: 'PUT',
         body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.message || 'Tạo khóa học thất bại. Vui lòng thử lại.');
+        setError(data.message || 'Cập nhật thất bại. Vui lòng thử lại.');
         return;
       }
       setSuccess(true);
-      setTimeout(() => navigate('/dashboard'), 2000);
-      // eslint-disable-next-line no-unused-vars
-    } catch (err) {
+      setTimeout(() => navigate('/teacher/courses'), 2000);
+    } catch {
       setError('Không thể kết nối đến server.');
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Access guard ─────────────────────────────────────────────
-  if (!currentUser) {
-    return (
-      <div style={{ maxWidth: '500px', margin: '80px auto', textAlign: 'center' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px' }}>Chưa đăng nhập</h1>
-        <p style={{ color: '#6B7280' }}>Vui lòng đăng nhập để tạo khóa học.</p>
-      </div>
-    );
-  }
-  if (!isTeacher()) {
+  // Guards
+  if (!currentUser || !currentUser.roles?.includes('ROLE_TEACHER')) {
     return (
       <div style={{ maxWidth: '500px', margin: '80px auto', textAlign: 'center' }}>
         <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚫</div>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px' }}>Không có quyền truy cập</h1>
-        <p style={{ color: '#6B7280' }}>Tính năng này chỉ dành cho Giảng viên (ROLE_TEACHER).</p>
+        <h1 style={{ fontSize: '22px', fontWeight: 700 }}>Không có quyền truy cập</h1>
+        <p style={{ color: '#6B7280' }}>Tính năng này chỉ dành cho Giảng viên.</p>
       </div>
     );
   }
 
-  // ── Success screen ───────────────────────────────────────────
+  if (fetching) {
+    return <div style={{ textAlign: 'center', padding: '80px', color: '#6B7280' }}>⏳ Đang tải dữ liệu...</div>;
+  }
+
+  if (!form) {
+    return (
+      <div style={{ maxWidth: '500px', margin: '80px auto', textAlign: 'center' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+        <h1 style={{ fontSize: '22px', fontWeight: 700 }}>Không tìm thấy khóa học</h1>
+        <p style={{ color: '#6B7280' }}>{error}</p>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div style={{ maxWidth: '500px', margin: '80px auto', textAlign: 'center' }}>
-        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>✅</div>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px', color: '#065F46' }}>Tạo khóa học thành công!</h1>
-        <p style={{ color: '#6B7280' }}>Đang chuyển về trang quản lý...</p>
+        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>🔄</div>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px', color: '#92400E' }}>Đã gửi lại để kiểm duyệt!</h1>
+        <p style={{ color: '#6B7280' }}>Khóa học đang chờ Admin phê duyệt. Đang chuyển hướng...</p>
       </div>
     );
   }
 
-  // ── Form ─────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-      {/* Page header */}
-      <div style={{ marginBottom: '32px' }}>
-        <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '4px' }}>Giảng viên</p>
-        <h1 style={{ fontSize: '28px', fontWeight: 700 }}>Tạo khóa học mới</h1>
+      {/* Header */}
+      <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '4px' }}>Giảng viên</p>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, margin: 0 }}>✏️ Chỉnh sửa khóa học</h1>
+        </div>
+        <button onClick={() => navigate('/teacher/courses')} style={{
+          background: 'none', border: '1px solid #D1D5DB', color: '#374151',
+          padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 500, fontSize: '14px',
+        }}>← Quay lại</button>
+      </div>
+
+      {/* Notice */}
+      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', padding: '12px 16px', marginBottom: '24px', fontSize: '14px', color: '#92400E' }}>
+        ⚠️ Sau khi lưu chỉnh sửa, khóa học sẽ chuyển về trạng thái <strong>Chờ duyệt</strong> và cần Admin phê duyệt lại.
       </div>
 
       {error && (
@@ -253,7 +292,7 @@ const CreateCourse = () => {
                 <input style={inputStyle} placeholder="VD: IELTS 7.0 Cấp Tốc" value={form.title}
                   onChange={e => setField('title', e.target.value)} />
               </Field>
-              <Field label="Slug (URL)" required hint="Chỉ dùng chữ thường, số và dấu gạch ngang. VD: ielts-7-0-cap-toc">
+              <Field label="Slug (URL)" required hint="Chỉ dùng chữ thường, số và dấu gạch ngang.">
                 <input style={inputStyle} placeholder="ielts-7-0-cap-toc" value={form.slug}
                   onChange={e => setField('slug', e.target.value.toLowerCase().replace(/\s+/g, '-'))} />
               </Field>
@@ -318,34 +357,22 @@ const CreateCourse = () => {
                       border: '1px solid ' + (isOpen ? '#BFDBFE' : '#E5E7EB'),
                       borderRadius: '8px', overflow: 'hidden',
                       boxShadow: isOpen ? '0 2px 8px rgba(0,86,210,0.08)' : 'none',
-                      transition: 'border-color 0.2s, box-shadow 0.2s',
                     }}>
-                      {/* Section header — click to expand */}
-                      <div
-                        onClick={() => setExpandedSection(isOpen ? -1 : i)}
+                      <div onClick={() => setExpandedSection(isOpen ? -1 : i)}
                         style={{
                           padding: '12px 16px', background: isOpen ? '#EFF6FF' : '#F9FAFB',
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          cursor: 'pointer', userSelect: 'none', transition: 'background 0.2s',
-                        }}
-                        onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = '#F3F4F6'; }}
-                        onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = '#F9FAFB'; }}
-                      >
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer',
+                        }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span style={{
                             background: isOpen ? '#0056D2' : '#9CA3AF', color: '#fff',
                             width: '24px', height: '24px', borderRadius: '50%',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '11px', fontWeight: 700, flexShrink: 0, transition: 'background 0.2s',
+                            fontSize: '11px', fontWeight: 700,
                           }}>{i + 1}</span>
                           <span style={{ fontWeight: 600, fontSize: '14px', color: isOpen ? '#0056D2' : '#374151' }}>
                             {sec.title || `Chương ${i + 1} (chưa đặt tên)`}
                           </span>
-                          {sec.skills.length > 0 && (
-                            <span style={{ background: '#DBEAFE', color: '#1D4ED8', padding: '1px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}>
-                              {sec.skills.length} skill
-                            </span>
-                          )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span style={{ color: '#6B7280', fontSize: '12px' }}>
@@ -356,15 +383,10 @@ const CreateCourse = () => {
                               style={{ width: '28px', height: '28px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '4px', color: '#DC2626', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >×</button>
                           )}
-                          <span style={{
-                            display: 'inline-block', transition: 'transform 0.2s',
-                            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                            color: '#9CA3AF', fontSize: '12px',
-                          }}>▼</span>
+                          <span style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', color: '#9CA3AF', fontSize: '12px', transition: 'transform 0.2s' }}>▼</span>
                         </div>
                       </div>
 
-                      {/* Section form — expanded */}
                       {isOpen && (
                         <div style={{ padding: '16px', borderTop: '1px solid #E5E7EB', background: '#fff' }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 130px', gap: '12px', marginBottom: '14px' }}>
@@ -381,14 +403,12 @@ const CreateCourse = () => {
                                 onChange={e => updateSection(i, 'duration', e.target.value)} />
                             </Field>
                           </div>
-                          <Field label="Mô tả chương" hint="Mô tả ngắn về nội dung chương này">
-                            <textarea style={textareaStyle} rows={2} placeholder="Giới thiệu tổng quan về nội dung chương học..."
-                              value={sec.description} onChange={e => updateSection(i, 'description', e.target.value)} />
+                          <Field label="Mô tả chương">
+                            <textarea style={textareaStyle} rows={2} value={sec.description}
+                              onChange={e => updateSection(i, 'description', e.target.value)} />
                           </Field>
                           <Field label="Kỹ năng (Skills)" hint="Nhấn Enter hoặc nút Thêm để thêm kỹ năng">
-                            <SkillInput
-                              onAdd={(skill) => addSkillToSection(i, skill)}
-                            />
+                            <SkillInput onAdd={(skill) => addSkillToSection(i, skill)} />
                             {sec.skills.length > 0 && (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
                                 {sec.skills.map((skill, si) => (
@@ -458,23 +478,8 @@ const CreateCourse = () => {
                 <input style={inputStyle} type="number" min={1} value={form.lessonCount}
                   onChange={e => setField('lessonCount', e.target.value)} />
               </Field>
-
-              <Field label="Đánh giá (1–5)">
-                <input style={inputStyle} type="number" min={1} max={5} step={0.1} value={form.rating}
-                  onChange={e => setField('rating', e.target.value)} />
-              </Field>
             </div>
 
-            {/* Trạng thái */}
-            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
-              <SectionHeader>⚙️ Trạng thái</SectionHeader>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={form.active} onChange={e => setField('active', e.target.checked)}
-                  style={{ width: '16px', height: '16px', accentColor: '#0056D2' }} />
-                <span style={{ fontWeight: 600, fontSize: '14px' }}>Kích hoạt ngay</span>
-              </label>
-              <p style={{ color: '#9CA3AF', fontSize: '12px', marginTop: '6px' }}>Khóa học sẽ hiển thị công khai ngay sau khi tạo.</p>
-            </div>
 
             {/* Submit */}
             <button type="submit" disabled={loading} style={{
@@ -482,7 +487,7 @@ const CreateCourse = () => {
               color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 700,
               fontSize: '16px', cursor: loading ? 'wait' : 'pointer',
             }}>
-              {loading ? 'Đang tạo khóa học...' : '🚀 Đăng khóa học'}
+              {loading ? 'Đang lưu...' : '💾 Lưu và gửi duyệt lại'}
             </button>
           </div>
         </div>
@@ -491,4 +496,4 @@ const CreateCourse = () => {
   );
 };
 
-export default CreateCourse;
+export default EditCourse;

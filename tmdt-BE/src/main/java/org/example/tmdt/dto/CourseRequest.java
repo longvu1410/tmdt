@@ -72,6 +72,10 @@ public class CourseRequest {
     @Min(0)
     private Integer ratingCount;
 
+    /** Giá sau giảm, null = không khuyến mãi */
+    @DecimalMin("0.00")
+    private BigDecimal discountPrice;
+
     @Size(max = 20)
     private List<@NotBlank @Size(max = 250) String> outcomes = new ArrayList<>();
 

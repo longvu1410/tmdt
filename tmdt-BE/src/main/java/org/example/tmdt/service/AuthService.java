@@ -11,7 +11,7 @@ import org.example.tmdt.dto.RegisterResponse;
 import org.example.tmdt.dto.UserResponse;
 import org.example.tmdt.entity.AppUser;
 import org.example.tmdt.entity.Role;
-import org.example.tmdt.entity.RoleName;
+import org.example.tmdt.enums.RoleName;
 import org.example.tmdt.exception.BadRequestException;
 import org.example.tmdt.mapper.UserMapper;
 import org.example.tmdt.repository.AppUserRepository;

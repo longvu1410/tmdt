@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import org.example.tmdt.entity.TeacherWithdrawalRequest;
-import org.example.tmdt.entity.WithdrawalStatus;
+import org.example.tmdt.enums.WithdrawalStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

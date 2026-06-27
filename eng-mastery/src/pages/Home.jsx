@@ -69,7 +69,8 @@ const Home = () => {
               const detailRes = await apiFetch(`/api/courses/${course.id}`);
               if (detailRes.ok) {
                 const detail = await detailRes.json();
-                return { ...course, thumbnailUrl: detail.thumbnailUrl };
+                return { ...course, thumbnailUrl: detail.thumbnailUrl, discountPrice: detail.discountPrice };
+
               }
             } catch (e) {
               console.warn(`Không lấy được chi tiết khóa học ${course.id}:`, e);
@@ -118,13 +119,14 @@ const Home = () => {
               }}>
                 Bắt đầu học miễn phí
               </Link>
-              <button style={{
+              <Link to="/courses" style={{
                 background: 'transparent', color: '#fff', padding: '14px 32px',
                 borderRadius: '4px', fontWeight: 600, fontSize: '16px',
                 border: '2px solid rgba(255,255,255,0.4)',
+                display: 'inline-block', textDecoration: 'none',
               }}>
                 Khám phá khóa học
-              </button>
+              </Link>
             </div>
             <div style={{ display: 'flex', gap: '32px', marginTop: '36px' }}>
               {[['10K+', 'Học viên'], ['50+', 'Khóa học'], ['4.8★', 'Đánh giá']].map(([val, label]) => (
@@ -201,11 +203,13 @@ const Home = () => {
               const title         = course.title ?? course.name ?? 'Không có tên';
               const instructor    = course.instructorName ?? course.teacherName ?? course.instructor ?? '';
               const price         = course.price ?? course.tuitionFee ?? null;
+              const discountPrice = course.discountPrice ?? null;
               const rating        = course.rating ?? course.averageRating ?? 0;
               const reviewCount   = course.totalReviews ?? course.reviewCount ?? course.reviews ?? 0;
               const level         = course.level ?? course.difficulty ?? '';
               const thumbnail     = course.thumbnailUrl ?? course.thumbnail ?? course.imageUrl ?? course.coverImage ?? null;
               const emoji         = levelEmoji[level] ?? '📚';
+
 
               return (
                 <Link key={id} to={`/course/${id}`} style={{
@@ -257,8 +261,16 @@ const Home = () => {
                       </div>
                     )}
                     <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 700, fontSize: '16px', color: '#111827' }}>{formatPrice(price)}</span>
+                      {discountPrice !== null && discountPrice >= 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '16px', color: '#DC2626' }}>{formatPrice(discountPrice)}</span>
+                          <span style={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '13px' }}>{formatPrice(price)}</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontWeight: 700, fontSize: '16px', color: '#111827' }}>{formatPrice(price)}</span>
+                      )}
                     </div>
+
                   </div>
                 </Link>
               );

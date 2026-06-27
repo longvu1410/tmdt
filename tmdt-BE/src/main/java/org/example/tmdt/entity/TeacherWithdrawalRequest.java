@@ -19,6 +19,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.example.tmdt.enums.WithdrawalStatus;
 
 @Entity
 @Table(name = "teacher_withdrawal_requests")

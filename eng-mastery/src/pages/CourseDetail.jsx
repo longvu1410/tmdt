@@ -87,11 +87,12 @@ const CourseDetail = () => {
       courseId:       Number(id),
       courseTitle:    course?.title ?? '',
       courseSlug:     course?.slug ?? '',
-      price:          course?.price ?? 0,
+      price:          course?.discountPrice !== null && course?.discountPrice !== undefined ? course.discountPrice : (course?.price ?? 0),
       thumbnailUrl:   course?.thumbnailUrl ?? null,
       instructorName: course?.instructorName ?? '',
       level:          course?.level ?? '',
     });
+
 
     setAddingToCart(false);
 
@@ -141,8 +142,10 @@ const CourseDetail = () => {
             );
             setHasReviewed(mine);
           }
+          setReviewsLoading(false);
           return; // Thành công → không cần fallback
         }
+
       } catch { /* API chưa có → fallback */ }
 
       // Fallback: lấy từ course.reviews (nếu có trong response chi tiết)
@@ -231,7 +234,9 @@ const CourseDetail = () => {
     </div>
   );
 
+  const hasDiscount = course.discountPrice !== null && course.discountPrice !== undefined && course.discountPrice >= 0;
   const priceFormatted = course.price?.toLocaleString('vi-VN') + 'đ';
+
 
   return (
     <div>
@@ -572,7 +577,20 @@ const CourseDetail = () => {
             )}
 
             <div style={{ padding: '20px 24px' }}>
-              <p style={{ fontSize: '30px', fontWeight: 700, color: '#111827', marginBottom: '16px' }}>{priceFormatted}</p>
+              {hasDiscount ? (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                    <span style={{ fontSize: '30px', fontWeight: 700, color: '#DC2626' }}>{course.discountPrice.toLocaleString('vi-VN') + 'đ'}</span>
+                    <span style={{ fontSize: '16px', textDecoration: 'line-through', color: '#9CA3AF' }}>{priceFormatted}</span>
+                  </div>
+                  <div style={{ display: 'inline-block', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 700, marginTop: '6px' }}>
+                    🏷️ TIẾT KIỆM {Math.round((1 - course.discountPrice / course.price) * 100)}%
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: '30px', fontWeight: 700, color: '#111827', marginBottom: '16px' }}>{priceFormatted}</p>
+              )}
+
 
               {/* Cart message */}
               {cartMsg && (

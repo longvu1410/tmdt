@@ -13,6 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.example.tmdt.enums.RoleName;
 
 @Entity
 @Table(name = "roles")
