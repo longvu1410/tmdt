@@ -428,6 +428,15 @@ const AdminDashboard = () => {
   const [userStats, setUserStats] = useState({ total: 0, active: 0, blocked: 0 });
   const [processingUser, setProcessingUser] = useState(false);
 
+  // Refund Management States
+  const [refunds, setRefunds] = useState([]);
+  const [refundStats, setRefundStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [processingRefund, setProcessingRefund] = useState(false);
+  const [selectedRefund, setSelectedRefund] = useState(null);
+  const [refundActionType, setRefundActionType] = useState('APPROVE'); // APPROVE or REJECT
+  const [refundAdminComment, setRefundAdminComment] = useState('');
+
+
   // Course Management States
   const [allCourses, setAllCourses] = useState([]);
   const [courseManagementStats, setCourseManagementStats] = useState({ total: 0, active: 0, inactive: 0 });
@@ -533,13 +542,31 @@ const AdminDashboard = () => {
     } catch (e) { /* silent */ }
   }, []);
 
+  const fetchRefundRequests = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/refunds');
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setRefunds(list);
+      setRefundStats({
+        total: list.length,
+        pending: list.filter(r => r.status === 'PENDING').length,
+        approved: list.filter(r => r.status === 'APPROVED').length,
+        rejected: list.filter(r => r.status === 'REJECTED').length,
+      });
+    } catch (e) { /* silent */ }
+  }, []);
+
   useEffect(() => {
     fetchPending();
     fetchWithdrawals();
     fetchComplaints();
     fetchUsers();
     fetchAllCoursesForAdmin();
-  }, [fetchPending, fetchWithdrawals, fetchComplaints, fetchUsers, fetchAllCoursesForAdmin]);
+    fetchRefundRequests();
+  }, [fetchPending, fetchWithdrawals, fetchComplaints, fetchUsers, fetchAllCoursesForAdmin, fetchRefundRequests]);
+
 
 
 
@@ -610,6 +637,36 @@ const AdminDashboard = () => {
       setProcessingCourseToggle(false);
     }
   };
+
+  const handleProcessRefund = async () => {
+    if (!selectedRefund) return;
+    setProcessingRefund(true);
+    setError('');
+    try {
+      const res = await apiFetch(`/api/refunds/${selectedRefund.id}/handle`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: refundActionType,
+          adminComment: refundAdminComment,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Xử lý yêu cầu hoàn tiền thất bại');
+      }
+      showSuccess('✅ Xử lý yêu cầu hoàn tiền thành công!');
+      setSelectedRefund(null);
+      setRefundAdminComment('');
+      fetchRefundRequests();
+      fetchWithdrawals(); // Recalculate stats where applicable
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setProcessingRefund(false);
+    }
+  };
+
 
 
 
@@ -837,6 +894,27 @@ const AdminDashboard = () => {
           </button>
           <button
             onClick={() => {
+              setActiveTab('REFUNDS');
+              setSearchQuery('');
+              setFilterStatus('ALL');
+            }}
+            style={{
+              padding: '12px 20px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'REFUNDS' ? '3px solid #EF4444' : '3px solid transparent',
+              color: activeTab === 'REFUNDS' ? '#EF4444' : '#6B7280',
+              fontWeight: activeTab === 'REFUNDS' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '15px',
+              transition: 'all 0.2s'
+            }}
+          >
+            💸 Hoàn tiền {refundStats.pending > 0 && <span style={{ background: '#EF4444', color: '#fff', fontSize: '11px', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>{refundStats.pending}</span>}
+          </button>
+
+          <button
+            onClick={() => {
               setActiveTab('COMPLAINTS');
               setSearchQuery('');
               setFilterStatus('ALL');
@@ -941,6 +1019,39 @@ const AdminDashboard = () => {
             ))}
           </div>
         )}
+
+        {activeTab === 'REFUNDS' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            {[
+              { label: 'Tổng yêu cầu hoàn tiền', value: refundStats.total, icon: '💸', color: '#4F46E5', bg: '#EEF2FF' },
+              { label: 'Chờ xử lý', value: refundStats.pending, icon: '⏳', color: '#D97706', bg: '#FFFBEB' },
+              { label: 'Đã duyệt', value: refundStats.approved, icon: '✅', color: '#059669', bg: '#ECFDF5' },
+              { label: 'Từ chối', value: refundStats.rejected, icon: '❌', color: '#DC2626', bg: '#FEF2F2' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: '#fff', border: '1px solid #E5E7EB',
+                borderRadius: '12px', padding: '20px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ color: '#6B7280', fontSize: '12px', fontWeight: 600, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {s.label}
+                    </p>
+                    <p style={{ color: s.color, fontSize: '32px', fontWeight: 800, margin: 0, lineHeight: 1 }}>
+                      {s.value}
+                    </p>
+                  </div>
+                  <div style={{
+                    width: '44px', height: '44px', background: s.bg, borderRadius: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+                  }}>{s.icon}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
 
 
         {activeTab === 'WITHDRAWALS' && (
@@ -1050,14 +1161,14 @@ const AdminDashboard = () => {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
           }}>
             <h2 style={{ color: '#111827', fontSize: '16px', fontWeight: 700, margin: 0 }}>
-              {activeTab === 'COURSES' ? '📋 Danh sách khóa học chờ duyệt' : activeTab === 'WITHDRAWALS' ? '📋 Danh sách yêu cầu rút tiền' : activeTab === 'COMPLAINTS' ? '📋 Danh sách khiếu nại' : '📋 Danh sách tài khoản người dùng'}
+              {activeTab === 'COURSES' ? '📋 Danh sách khóa học chờ duyệt' : activeTab === 'MANAGE_COURSES' ? '📋 Danh sách tất cả khóa học' : activeTab === 'WITHDRAWALS' ? '📋 Danh sách yêu cầu rút tiền' : activeTab === 'REFUNDS' ? '📋 Danh sách yêu cầu hoàn tiền' : activeTab === 'COMPLAINTS' ? '📋 Danh sách khiếu nại' : '📋 Danh sách tài khoản người dùng'}
             </h2>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               {/* Search */}
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  placeholder={activeTab === 'COURSES' ? "Tìm kiếm khóa học..." : activeTab === 'WITHDRAWALS' ? "Tìm giảng viên, STK..." : activeTab === 'COMPLAINTS' ? "Tìm học viên, khóa học..." : "Tìm tên, email..."}
+                  placeholder={activeTab === 'COURSES' || activeTab === 'MANAGE_COURSES' ? "Tìm kiếm khóa học..." : activeTab === 'WITHDRAWALS' ? "Tìm giảng viên, STK..." : activeTab === 'REFUNDS' ? "Tìm học viên, khóa học..." : activeTab === 'COMPLAINTS' ? "Tìm học viên, khóa học..." : "Tìm tên, email..."}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{
@@ -1083,11 +1194,17 @@ const AdminDashboard = () => {
                     <option value="ACTIVE">Đang hoạt động</option>
                     <option value="BLOCKED">Bị khóa</option>
                   </>
+                ) : activeTab === 'MANAGE_COURSES' ? (
+                  <>
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="ACTIVE">Đang hiển thị</option>
+                    <option value="INACTIVE">Đang ẩn</option>
+                  </>
                 ) : (
                   <>
                     <option value="ALL">Tất cả trạng thái</option>
-                    <option value="PENDING">Chờ duyệt</option>
-                    <option value="APPROVED">Đã duyệt</option>
+                    <option value="PENDING">Chờ duyệt / xử lý</option>
+                    <option value="APPROVED">Đã duyệt / hoàn tiền</option>
                     <option value="REJECTED">Từ chối</option>
                   </>
                 )}
@@ -1478,6 +1595,115 @@ const AdminDashboard = () => {
             </>
           )}
 
+          {/* ── REFUNDS PANEL ── */}
+          {activeTab === 'REFUNDS' && (
+            <>
+
+              {loading ? (
+                <div style={{ padding: '60px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '16px', animation: 'pulse 1.5s infinite' }}>⏳</div>
+                  <p style={{ color: '#9CA3AF' }}>Đang tải danh sách yêu cầu hoàn tiền...</p>
+                </div>
+              ) : refunds.length === 0 ? (
+                <div style={{ padding: '60px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '16px' }}>📭</div>
+                  <p style={{ color: '#6B7280', marginBottom: '8px' }}>Không có yêu cầu hoàn tiền nào</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
+                    <thead>
+                      <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Mã yêu cầu</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Khóa học & Đơn hàng</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Học viên</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Số tiền hoàn</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Lý do</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Trạng thái</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Ngày tạo</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {refunds.filter(r => {
+                        const q = searchQuery.toLowerCase();
+                        const matchSearch = !searchQuery || r.courseTitle?.toLowerCase().includes(q) || r.studentName?.toLowerCase().includes(q) || r.studentEmail?.toLowerCase().includes(q);
+                        const matchStatus = filterStatus === 'ALL' || r.status === filterStatus;
+                        return matchSearch && matchStatus;
+                      }).map((r) => {
+                        const statusColors = {
+                          PENDING: { color: '#D97706', bg: '#FFFBEB', label: '⏳ Chờ xử lý' },
+                          APPROVED: { color: '#059669', bg: '#ECFDF5', label: '✅ Đã hoàn tiền' },
+                          REJECTED: { color: '#DC2626', bg: '#FEF2F2', label: '❌ Từ chối' },
+                        };
+                        const st = statusColors[r.status] || { color: '#374151', bg: '#F3F4F6', label: r.status };
+                        return (
+                          <tr key={r.id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background 0.15s' }}>
+                            <td style={{ padding: '14px 16px', color: '#9CA3AF' }}>#{r.id}</td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <div><strong>{r.courseTitle}</strong></div>
+                              <div style={{ color: '#6B7280', fontSize: '11.5px' }}>Đơn hàng: #{r.orderId}</div>
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <div><strong>{r.studentName}</strong></div>
+                              <div style={{ color: '#6B7280', fontSize: '11.5px' }}>{r.studentEmail}</div>
+                            </td>
+                            <td style={{ padding: '14px 16px', fontWeight: 700, color: '#DC2626' }}>
+                              {formatCurrency(r.amount)}
+                            </td>
+                            <td style={{ padding: '14px 16px', maxWidth: '240px', wordBreak: 'break-all' }}>
+                              {r.reason}
+                              {r.adminComment && (
+                                <div style={{ fontSize: '11.5px', color: '#B45309', marginTop: '4px', background: '#FFFBEB', padding: '4px 8px', borderRadius: '4px' }}>
+                                  💬 <b>Admin:</b> {r.adminComment}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={{ color: st.color, background: st.bg, padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}>
+                                {st.label}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 16px', color: '#6B7280' }}>
+                              {formatDateTime(r.createdAt)}
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              {r.status === 'PENDING' ? (
+                                <button
+                                  onClick={() => {
+                                    setSelectedRefund(r);
+                                    setRefundActionType('APPROVED');
+                                    setRefundAdminComment('');
+                                  }}
+                                  style={{
+                                    background: '#7C3AED', border: 'none', color: '#fff',
+                                    padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                    fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  ⚙️ Xử lý
+                                </button>
+                              ) : (
+                                <span style={{ color: '#9CA3AF', fontSize: '12px', fontStyle: 'italic' }}>
+                                  Đã duyệt bởi {r.handledByAdminName}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ padding: '12px 24px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#9CA3AF', fontSize: '13px' }}>Tổng cộng {refunds.length} yêu cầu</span>
+                <span style={{ color: '#059669', fontSize: '13px', fontWeight: 600 }}>✓ {refundStats.approved} đã hoàn tiền / ⏳ {refundStats.pending} chờ xử lý</span>
+              </div>
+            </>
+          )}
+
+
           {/* ── COMPLAINTS PANEL ── */}
           {activeTab === 'COMPLAINTS' && (
             <>
@@ -1818,6 +2044,100 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {/* ── REFUND HANDLE MODAL ── */}
+      {selectedRefund && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', backdropFilter: 'blur(4px)' }}
+          onClick={e => e.target === e.currentTarget && setSelectedRefund(null)}>
+          <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E5E7EB', background: '#F5F3FF', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#7C3AED' }}>💸 Xử lý yêu cầu hoàn tiền #{selectedRefund.id}</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6B7280' }}>Đơn hàng #{selectedRefund.orderId} &nbsp;·&nbsp; Học viên: {selectedRefund.studentName}</p>
+              </div>
+              <button onClick={() => setSelectedRefund(null)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#9CA3AF', cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
+                <p style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#6B7280' }}><b>Khóa học:</b> {selectedRefund.courseTitle}</p>
+                <p style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#6B7280' }}><b>Số tiền:</b> <strong style={{ color: '#DC2626' }}>{formatCurrency(selectedRefund.amount)}</strong></p>
+                <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#6B7280' }}><b>Lý do hoàn:</b></p>
+                <p style={{ margin: 0, fontSize: '13px', color: '#111827', fontStyle: 'italic', background: '#FFF', padding: '10px', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                  "{selectedRefund.reason}"
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>Quyết định</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setRefundActionType('APPROVED')}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600,
+                        border: refundActionType === 'APPROVED' ? '2.5px solid #059669' : '1px solid #D1D5DB',
+                        background: refundActionType === 'APPROVED' ? '#ECFDF5' : '#fff',
+                        color: refundActionType === 'APPROVED' ? '#059669' : '#374151',
+                      }}
+                    >
+                      ✅ Hoàn tiền
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRefundActionType('REJECTED')}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600,
+                        border: refundActionType === 'REJECTED' ? '2.5px solid #DC2626' : '1px solid #D1D5DB',
+                        background: refundActionType === 'REJECTED' ? '#FEF2F2' : '#fff',
+                        color: refundActionType === 'REJECTED' ? '#DC2626' : '#374151',
+                      }}
+                    >
+                      ❌ Từ chối
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>
+                    Ý kiến phản hồi {refundActionType === 'REJECTED' && <span style={{ color: '#DC2626' }}>*</span>}
+                  </label>
+                  <textarea
+                    required={refundActionType === 'REJECTED'}
+                    placeholder={refundActionType === 'APPROVED' ? "Nhập tin nhắn thông báo (không bắt buộc)..." : "Nhập lý do từ chối cụ thể..."}
+                    value={refundAdminComment}
+                    onChange={(e) => setRefundAdminComment(e.target.value)}
+                    rows={3}
+                    style={{
+                      width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #D1D5DB',
+                      fontSize: '13.5px', outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRefund(null)}
+                    style={{ flex: 1, padding: '12px', border: '1px solid #D1D5DB', color: '#6B7280', background: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProcessRefund}
+                    disabled={processingRefund || (refundActionType === 'REJECTED' && !refundAdminComment.trim())}
+                    style={{
+                      flex: 2, padding: '12px', background: refundActionType === 'APPROVED' ? '#059669' : '#DC2626', color: '#fff',
+                      border: 'none', borderRadius: '8px', cursor: processingRefund ? 'wait' : 'pointer', fontWeight: 600,
+                      opacity: (processingRefund || (refundActionType === 'REJECTED' && !refundAdminComment.trim())) ? 0.7 : 1,
+                    }}
+                  >
+                    {processingRefund ? 'Đang xử lý...' : 'Xác nhận xử lý'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1829,5 +2149,6 @@ const AdminDashboard = () => {
     </div>
   );
 };
+
 
 export default AdminDashboard;

@@ -6,14 +6,14 @@
  *  - Nếu refresh thất bại → logout (giữ giỏ hàng localStorage)
  */
 
-const API_BASE = 'http://localhost:8080';
+const API_BASE = 'https://api.hatruong.id.vn';
 
 // ─── Token helpers ────────────────────────────────────────────────
-export const getAccessToken  = () => localStorage.getItem('accessToken');
+export const getAccessToken = () => localStorage.getItem('accessToken');
 export const getRefreshToken = () => localStorage.getItem('refreshToken');
 
 export const saveTokens = (data) => {
-  if (data.accessToken)  localStorage.setItem('accessToken', data.accessToken);
+  if (data.accessToken) localStorage.setItem('accessToken', data.accessToken);
   if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
   // Chỉ ghi user nếu response có chứa user data
   if (data.user) {

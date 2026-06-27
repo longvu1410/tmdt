@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./tmdt-BE
+      dockerfile: Dockerfile
+    container_name: tmdt-backend
+    # Option A: Run on host network to easily access existing local host containers (Postgres, Redis, Kafka)
+    # using 'localhost' from the .env file.
+    network_mode: "host"
+    env_file:
+      - ./tmdt-BE/.env
+    restart: always
+
+  frontend:
+    build:
+      context: ./eng-mastery
+      dockerfile: Dockerfile
+    container_name: tmdt-frontend
+    # Binds port 80 to the host network (Nginx inside container serves Vite app)
+    network_mode: "host"
+    restart: always

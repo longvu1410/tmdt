@@ -57,6 +57,23 @@ const Orders = () => {
   const [payingId, setPayingId] = useState(null);   // order.id đang xử lý pay
   const [payMsg, setPayMsg] = useState(null);        // { id, type, text }
 
+  const [refundRequests, setRefundRequests] = useState([]);
+  const [refundingOrderId, setRefundingOrderId] = useState(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [showRefundModal, setShowRefundModal] = useState(false);
+
+  const fetchRefundRequests = async () => {
+    try {
+      const res = await apiFetch('/api/refunds/my');
+      if (res.ok) {
+        const data = await res.json();
+        setRefundRequests(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Fetch refund requests error:', e);
+    }
+  };
+
   useEffect(() => {
     const fetchOrders = async () => {
       try {
@@ -75,7 +92,9 @@ const Orders = () => {
       }
     };
     fetchOrders();
+    fetchRefundRequests();
   }, []);
+
 
   // ── Thanh toán đơn hàng PENDING ──
   const handlePay = async (orderId) => {
@@ -115,6 +134,36 @@ const Orders = () => {
       setPayingId(null);
     }
   };
+
+  const getRefundRequestForOrder = (orderId) => {
+    return refundRequests.find(r => r.orderId === orderId);
+  };
+
+  const handleSubmitRefund = async () => {
+    if (!refundReason.trim() || !refundingOrderId) return;
+    try {
+      const res = await apiFetch('/api/refunds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: refundingOrderId,
+          reason: refundReason
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Gửi yêu cầu hoàn tiền thất bại');
+      }
+      alert('Gửi yêu cầu hoàn tiền thành công! Vui lòng chờ phản hồi từ ban quản trị.');
+      setShowRefundModal(false);
+      setRefundingOrderId(null);
+      setRefundReason('');
+      fetchRefundRequests();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
 
   const filtered = filter === 'ALL'
     ? orders
@@ -280,9 +329,47 @@ const Orders = () => {
                         )}
                       </div>
                     )}
-                    {order.status?.toUpperCase() === 'PAID' && (
-                      <span style={{ fontSize: '13px', color: '#10B981', fontWeight: 600 }}>✓ Đã thanh toán</span>
-                    )}
+                    {order.status?.toUpperCase() === 'PAID' && (() => {
+                      const refundReq = getRefundRequestForOrder(order.id);
+                      if (refundReq) {
+                        const statusColors = {
+                          PENDING: { text: '⏳ Chờ hoàn tiền', color: '#D97706' },
+                          APPROVED: { text: '✅ Đã hoàn tiền', color: '#059669' },
+                          REJECTED: { text: '❌ Từ chối hoàn tiền', color: '#DC2626' },
+                        };
+                        const info = statusColors[refundReq.status] || { text: refundReq.status, color: '#6B7280' };
+                        return (
+                          <div style={{ fontSize: '13px' }}>
+                            <span style={{ color: info.color, fontWeight: 600 }}>{info.text}</span>
+                            {refundReq.adminComment && (
+                              <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '2px' }} title={refundReq.adminComment}>
+                                Phản hồi: {refundReq.adminComment}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '13px', color: '#10B981', fontWeight: 600 }}>✓ Đã thanh toán</span>
+                          <button
+                            onClick={() => {
+                              setRefundingOrderId(order.id);
+                              setRefundReason('');
+                              setShowRefundModal(true);
+                            }}
+                            style={{
+                              padding: '4px 8px', borderRadius: '4px', fontSize: '11.5px',
+                              fontWeight: 600, border: '1px solid #DC2626', background: 'none',
+                              color: '#DC2626', cursor: 'pointer', transition: 'all 0.2s',
+                              alignSelf: 'flex-start',
+                            }}
+                          >
+                            💸 Hoàn tiền
+                          </button>
+                        </div>
+                      );
+                    })()}
                     {order.status?.toUpperCase() === 'COMPLETED' && (
                       <span style={{ fontSize: '13px', color: '#0056D2', fontWeight: 600 }}>✓ Hoàn thành</span>
                     )}
@@ -302,6 +389,63 @@ const Orders = () => {
           </tbody>
         </table>
       </div>
+      {/* Refund Request Modal */}
+      {showRefundModal && (
+
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#fff', padding: '28px', borderRadius: '12px',
+            width: '450px', maxWidth: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', fontWeight: 700, color: '#111827' }}>
+              Yêu cầu hoàn tiền đơn hàng #{refundingOrderId}
+            </h3>
+            <p style={{ fontSize: '13.5px', color: '#6B7280', marginBottom: '16px', lineHeight: 1.5 }}>
+              Vui lòng nhập lý do bạn muốn hoàn lại tiền. Admin sẽ xem xét và phản hồi trong thời gian sớm nhất.
+            </p>
+            <textarea
+              value={refundReason}
+              onChange={e => setRefundReason(e.target.value)}
+              placeholder="Nhập lý do chi tiết..."
+              style={{
+                width: '100%', height: '120px', padding: '12px', borderRadius: '8px',
+                border: '1px solid #D1D5DB', outline: 'none', resize: 'none',
+                fontSize: '13.5px', marginBottom: '20px', fontFamily: 'inherit',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  setShowRefundModal(false);
+                  setRefundingOrderId(null);
+                  setRefundReason('');
+                }}
+                style={{
+                  padding: '8px 16px', border: '1px solid #D1D5DB', background: 'none',
+                  color: '#4B5563', borderRadius: '6px', cursor: 'pointer', fontSize: '13.5px',
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSubmitRefund}
+                disabled={!refundReason.trim()}
+                style={{
+                  padding: '8px 20px', border: 'none', background: '#DC2626',
+                  color: '#fff', borderRadius: '6px', cursor: refundReason.trim() ? 'pointer' : 'not-allowed',
+                  fontSize: '13.5px', fontWeight: 600, opacity: refundReason.trim() ? 1 : 0.6,
+                }}
+              >
+                Gửi yêu cầu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
