@@ -18,6 +18,7 @@ import TeacherCourses from './pages/TeacherCourses';
 import EditCourse from './pages/EditCourse';
 import CoursesPage from './pages/CoursesPage';
 import MyComplaints from './pages/MyComplaints';
+import ChatPage from './pages/ChatPage';
 
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/courses" element={<CoursesPage />} />
                 <Route path="/complaints" element={<MyComplaints />} />
+                <Route path="/messages" element={<ChatPage />} />
 
                 <Route path="/course/:id" element={<CourseDetail />} />
                 <Route path="/cart" element={<Cart />} />
