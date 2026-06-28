@@ -11,6 +11,9 @@ services:
     network_mode: "host"
     env_file:
       - ./tmdt-BE/.env
+    environment:
+      - APP_WEB_BASE_URL=https://app.hatruong.id.vn
+      - APP_BACKEND_BASE_URL=https://api.hatruong.id.vn
     restart: always
 
   frontend:
@@ -20,11 +23,4 @@ services:
     container_name: tmdt-frontend
     # Binds port 80 to the host network (Nginx inside container serves Vite app)
     network_mode: "host"
-    restart: always
-
-  redis:
-    image: redis:alpine
-    container_name: tmdt-redis
-    ports:
-      - "6379:6379"
     restart: always

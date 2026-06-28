@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { apiFetch } from '../services/apiService';
+import API_BASE, { apiFetch } from '../services/apiService';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
@@ -78,7 +78,7 @@ const ChatPage = () => {
   useEffect(() => {
     if (!user) return;
 
-    const socket = new SockJS('http://localhost:8080/ws');
+    const socket = new SockJS(`${API_BASE}/ws`);
     const client = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
@@ -170,7 +170,7 @@ const ChatPage = () => {
 
     setUploading(true);
     try {
-      const res = await fetch('http://localhost:8080/api/upload', {
+      const res = await fetch(`${API_BASE}/api/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`

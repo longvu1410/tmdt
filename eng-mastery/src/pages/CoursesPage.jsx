@@ -158,6 +158,10 @@ const CoursesPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Pagination state
+  const ITEMS_PER_PAGE = 6;
+  const [currentPage, setCurrentPage] = useState(1);
+
   // Filter state
   const [selectedTopics, setSelectedTopics] = useState(() => {
     const t = searchParams.get('topic');
@@ -167,6 +171,11 @@ const CoursesPage = () => {
   const [priceRange, setPriceRange] = useState(0); // index into PRICE_RANGES
   const [sort, setSort] = useState('newest');
   const [searchText, setSearchText] = useState(searchParams.get('q') || '');
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, selectedTopics, selectedLevels, priceRange, sort]);
 
   // Fetch all courses
   useEffect(() => {
@@ -250,6 +259,9 @@ const CoursesPage = () => {
 
     return list;
   })();
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedCourses = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const clearFilters = () => {
     setSelectedTopics([]);
@@ -429,11 +441,76 @@ const CoursesPage = () => {
           {!loading && filtered.length > 0 && (
             <>
               <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '16px' }}>
-                Hiển thị <strong>{filtered.length}</strong> / {allCourses.length} khóa học
+                Hiển thị <strong>{Math.min(filtered.length, (currentPage - 1) * ITEMS_PER_PAGE + 1)}-{Math.min(filtered.length, currentPage * ITEMS_PER_PAGE)}</strong> trong số <strong>{filtered.length}</strong> khóa học
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-                {filtered.map(course => <CourseCard key={course.id} course={course} />)}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '32px' }}>
+                {paginatedCourses.map(course => <CourseCard key={course.id} course={course} />)}
               </div>
+
+              {/* Pagination controls */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '20px' }}>
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #D1D5DB',
+                      background: currentPage === 1 ? '#F3F4F6' : '#fff',
+                      color: currentPage === 1 ? '#9CA3AF' : '#374151',
+                      borderRadius: '6px',
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    ◀ Trang trước
+                  </button>
+                  
+                  {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: page === currentPage ? 'none' : '1px solid #D1D5DB',
+                        background: page === currentPage ? '#0056D2' : '#fff',
+                        color: page === currentPage ? '#fff' : '#374151',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #D1D5DB',
+                      background: currentPage === totalPages ? '#F3F4F6' : '#fff',
+                      color: currentPage === totalPages ? '#9CA3AF' : '#374151',
+                      borderRadius: '6px',
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    Trang sau ▶
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

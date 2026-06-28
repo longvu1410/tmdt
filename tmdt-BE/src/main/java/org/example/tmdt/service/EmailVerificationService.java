@@ -27,7 +27,7 @@ public class EmailVerificationService {
     private final AppUserRepository appUserRepository;
     private final EmailService emailService;
 
-    @Value("${app.web.base-url:http://localhost:5173}")
+    @Value("${app.web.base-url:https://app.hatruong.id.vn}")
     private String webBaseUrl;
 
     @Value("${app.email.verification-token-ttl:PT24H}")

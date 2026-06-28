@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { apiFetch } from '../services/apiService';
+import API_BASE, { apiFetch } from '../services/apiService';
 
 // ── Helpers ──────────────────────────────────────────────────────
 const getUser = () => {
@@ -81,6 +81,99 @@ const SkillInput = ({ onAdd }) => {
         padding: '0 14px', background: '#EFF6FF', color: '#1D4ED8',
         border: '1px solid #BFDBFE', borderRadius: '4px', fontWeight: 600, fontSize: '13px', cursor: 'pointer',
       }}>+ Thêm</button>
+    </div>
+  );
+};
+
+// ── Video Upload Input ──────────────────────────────────────────
+const VideoUploadInput = ({ value, onChange }) => {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileInputRef = React.useRef(null);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      setError('Vui lòng chọn tệp video hợp lệ.');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/upload/video`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: formData
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Tải video lên thất bại.');
+      }
+
+      onChange(data.url);
+    } catch (err) {
+      setError(err.message || 'Có lỗi xảy ra khi tải video.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <input
+          type="text"
+          style={{ ...inputStyle, flex: 1 }}
+          placeholder="Tải tệp video lên hoặc dán URL..."
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleUpload}
+          accept="video/*"
+          style={{ display: 'none' }}
+        />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            height: '42px',
+            padding: '0 16px',
+            background: uploading ? '#93C5FD' : '#0056D2',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            fontWeight: 600,
+            fontSize: '13px',
+            cursor: uploading ? 'wait' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {uploading ? '⏳ Đang tải...' : '📤 Tải tệp lên'}
+        </button>
+      </div>
+      {error && <p style={{ color: '#DC2626', fontSize: '12px', marginTop: '4px' }}>⚠️ {error}</p>}
+      {value && !uploading && (
+        <p style={{ color: '#059669', fontSize: '12px', marginTop: '4px' }}>
+          ✅ Đã chọn video. <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: '#0056D2', textDecoration: 'underline' }}>Xem thử</a>
+        </p>
+      )}
     </div>
   );
 };
@@ -426,9 +519,9 @@ const EditCourse = () => {
                               </div>
                             )}
                           </Field>
-                          <Field label="🎬 URL Video" hint="Dán link video (MP4, YouTube embed, v.v.)">
-                            <input style={inputStyle} placeholder="https://example.com/video.mp4" value={sec.videoUrl || ''}
-                              onChange={e => updateSection(i, 'videoUrl', e.target.value)} />
+                          <Field label="🎬 Video bài giảng" hint="Tải lên tệp video hoặc dán link video (MP4, YouTube embed, v.v.)">
+                            <VideoUploadInput value={sec.videoUrl || ''}
+                              onChange={val => updateSection(i, 'videoUrl', val)} />
                           </Field>
                         </div>
                       )}

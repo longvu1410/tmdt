@@ -63,7 +63,7 @@ const Navbar = () => {
 
     fetchUnreadCount();
 
-    const socket = new SockJS('http://localhost:8080/ws');
+    const socket = new SockJS('https://api.hatruong.id.vn/ws');
     const stompClient = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,

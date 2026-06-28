@@ -76,7 +76,7 @@ public class ComplaintService {
         // Notify admin via email (best effort)
         try {
             String html = buildAdminNotifyEmail(saved, course, student);
-            emailService.sendHtml("admin@engmastery.vn",
+            emailService.sendHtml("hacaotantruong0@gmail.com",
                     "🚨 Khiếu nại mới #" + saved.getId() + ": " + course.getTitle(), html);
         } catch (Exception ignored) {}
 

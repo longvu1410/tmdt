@@ -14,9 +14,16 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
     username: '', name: '', email: '', password: '', confirmPassword: '', role: 'STUDENT',
   });
 
+  // Resend fields
+  const [resendEmail, setResendEmail] = useState('');
+  const [resendMessage, setResendMessage] = useState('');
+  const [resendSuccess, setResendSuccess] = useState(false);
+
   useEffect(() => {
     setTab(defaultTab);
     setError('');
+    setResendMessage('');
+    setResendSuccess(false);
   }, [defaultTab, isOpen]);
 
   if (!isOpen) return null;
@@ -83,9 +90,43 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
         setError(data.message || 'Đăng ký thất bại. Vui lòng thử lại.');
         return;
       }
-      setTab('login');
+      
+      // Chuyển sang tab gửi lại xác thực
+      const registeredEmail = registerForm.email;
+      setResendEmail(registeredEmail);
+      setTab('resend-verification');
+      setResendSuccess(true);
+      setResendMessage('Đăng ký tài khoản thành công! Một email kích hoạt đã được gửi tới hộp thư của bạn. Vui lòng kiểm tra email để xác thực tài khoản.');
       setError('');
-      alert('Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản. Nhấn vào link trong email để tự động đăng nhập.');
+    } catch {
+      setError('Không thể kết nối đến server. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendSubmit = async (e) => {
+    e.preventDefault();
+    if (!resendEmail) {
+      setError('Vui lòng nhập email.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setResendMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resendEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || 'Gửi lại email kích hoạt thất bại.');
+        return;
+      }
+      setResendSuccess(true);
+      setResendMessage('Gửi lại email xác thực thành công! Vui lòng kiểm tra hộp thư của bạn.');
     } catch {
       setError('Không thể kết nối đến server. Vui lòng thử lại.');
     } finally {
@@ -144,19 +185,25 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB' }}>
-            {['login', 'register'].map(t => (
-              <button key={t} onClick={() => { setTab(t); setError(''); }} style={{
-                flex: 1, padding: '12px', fontWeight: 600, fontSize: '15px',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: tab === t ? '#0056D2' : '#6B7280',
-                borderBottom: tab === t ? '2px solid #0056D2' : '2px solid transparent',
-                transition: 'all 0.15s',
-              }}>
-                {t === 'login' ? 'Đăng nhập' : 'Đăng ký'}
-              </button>
-            ))}
-          </div>
+          {tab !== 'resend-verification' ? (
+            <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB' }}>
+              {['login', 'register'].map(t => (
+                <button key={t} onClick={() => { setTab(t); setError(''); }} style={{
+                  flex: 1, padding: '12px', fontWeight: 600, fontSize: '15px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: tab === t ? '#0056D2' : '#6B7280',
+                  borderBottom: tab === t ? '2px solid #0056D2' : '2px solid transparent',
+                  transition: 'all 0.15s',
+                }}>
+                  {t === 'login' ? 'Đăng nhập' : 'Đăng ký'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '12px 0', borderBottom: '1px solid #E5E7EB', fontWeight: 600, fontSize: '16px', color: '#374151' }}>
+              Gửi lại email kích hoạt
+            </div>
+          )}
         </div>
 
         {/* Body */}
@@ -167,7 +214,28 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
               background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '4px',
               padding: '12px 16px', marginBottom: '16px', color: '#DC2626', fontSize: '14px',
             }}>
-              ⚠️ {error}
+              ⚠️ {error === 'Please verify your email before logging in' ? 'Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để xác thực tài khoản.' : error}
+              {error === 'Please verify your email before logging in' && (
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const isEmail = loginForm.usernameOrEmail.includes('@');
+                      setResendEmail(isEmail ? loginForm.usernameOrEmail : '');
+                      setTab('resend-verification');
+                      setError('');
+                      setResendMessage('');
+                      setResendSuccess(false);
+                    }}
+                    style={{
+                      color: '#0056D2', fontWeight: 600, background: 'none', border: 'none',
+                      cursor: 'pointer', fontSize: '13px', padding: 0, textDecoration: 'underline'
+                    }}
+                  >
+                    Gửi lại email kích hoạt ngay
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -322,6 +390,55 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
                 <button type="button" onClick={() => { setTab('login'); setError(''); }}
                   style={{ color: '#0056D2', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
                   Đăng nhập
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* RESEND VERIFICATION FORM */}
+          {tab === 'resend-verification' && (
+            <form onSubmit={handleResendSubmit}>
+              {resendMessage && (
+                <div style={{
+                  background: resendSuccess ? '#ECFDF5' : '#FEF2F2',
+                  border: resendSuccess ? '1px solid #A7F3D0' : '1px solid #FECACA',
+                  borderRadius: '4px',
+                  padding: '12px 16px', marginBottom: '16px',
+                  color: resendSuccess ? '#059669' : '#DC2626', fontSize: '14px',
+                  lineHeight: 1.5
+                }}>
+                  {resendSuccess ? '✅' : '⚠️'} {resendMessage}
+                </div>
+              )}
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: 1.5, marginBottom: '16px' }}>
+                  Nhập địa chỉ email đăng ký của bạn để hệ thống gửi lại liên kết xác thực tài khoản.
+                </p>
+                <label style={labelStyle}>Địa chỉ Email</label>
+                <input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={resendEmail}
+                  onChange={e => setResendEmail(e.target.value)}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = '#0056D2'}
+                  onBlur={e => e.target.style.borderColor = '#D1D5DB'}
+                  required
+                />
+              </div>
+              <button type="submit" disabled={loading} style={{
+                width: '100%', height: '48px', background: loading ? '#93C5FD' : '#0056D2',
+                color: '#fff', border: 'none', borderRadius: '4px',
+                fontWeight: 700, fontSize: '16px', cursor: loading ? 'wait' : 'pointer',
+                transition: 'background 0.2s',
+                marginBottom: '16px'
+              }}>
+                {loading ? 'Đang gửi...' : 'Gửi lại email kích hoạt'}
+              </button>
+              <div style={{ textAlign: 'center', fontSize: '14px' }}>
+                <button type="button" onClick={() => { setTab('login'); setError(''); setResendMessage(''); }}
+                  style={{ color: '#0056D2', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+                  Quay lại đăng nhập
                 </button>
               </div>
             </form>
