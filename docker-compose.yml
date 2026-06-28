@@ -21,3 +21,10 @@ services:
     # Binds port 80 to the host network (Nginx inside container serves Vite app)
     network_mode: "host"
     restart: always
+
+  redis:
+    image: redis:alpine
+    container_name: tmdt-redis
+    ports:
+      - "6379:6379"
+    restart: always

@@ -6,7 +6,8 @@
  *  - Nếu refresh thất bại → logout (giữ giỏ hàng localStorage)
  */
 
-const API_BASE = 'https://api.hatruong.id.vn';
+//const API_BASE = 'https://api.hatruong.id.vn';
+const API_BASE = 'http://localhost:8080';
 
 // ─── Token helpers ────────────────────────────────────────────────
 export const getAccessToken = () => localStorage.getItem('accessToken');

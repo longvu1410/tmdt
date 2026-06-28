@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import AuthModal from './AuthModal';
-import { clearTokens } from '../services/apiService';
+import { clearTokens, apiFetch } from '../services/apiService';
 import { getCartCount } from '../services/cartUtils';
+import SockJS from 'sockjs-client';
+import { Client } from '@stomp/stompjs';
 
 const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -12,8 +14,21 @@ const Navbar = () => {
   const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [cartCount, setCartCount] = useState(getCartCount());
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await apiFetch('/api/chat/unread-count');
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadChatCount(data.unreadCount || 0);
+      }
+    } catch (e) {
+      console.error('Failed to fetch unread count:', e);
+    }
+  };
 
 
   // Load user từ localStorage khi mount
@@ -38,6 +53,44 @@ const Navbar = () => {
     window.addEventListener('auth-logout', onLogout);
     return () => window.removeEventListener('auth-logout', onLogout);
   }, []);
+
+  // Lắng nghe WebSocket tin nhắn mới và quản lý unread count
+  useEffect(() => {
+    if (!user) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    fetchUnreadCount();
+
+    const socket = new SockJS('http://localhost:8080/ws');
+    const stompClient = new Client({
+      webSocketFactory: () => socket,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        stompClient.subscribe(`/topic/chat/${user.id}`, (message) => {
+          const msg = JSON.parse(message.body);
+          if (msg.senderId !== user.id) {
+            fetchUnreadCount();
+            window.dispatchEvent(new CustomEvent('new-message-received', { detail: msg }));
+          }
+        });
+      },
+      onStompError: (frame) => {
+        console.error('Broker reported error: ' + frame.headers['message']);
+      }
+    });
+
+    stompClient.activate();
+
+    const handleResetUnread = () => fetchUnreadCount();
+    window.addEventListener('chat-unread-reset', handleResetUnread);
+
+    return () => {
+      stompClient.deactivate();
+      window.removeEventListener('chat-unread-reset', handleResetUnread);
+    };
+  }, [user]);
 
   // Đóng dropdown khi click ra ngoài
   useEffect(() => {
@@ -129,6 +182,20 @@ const Navbar = () => {
                 <Link to="/teacher/courses" style={navLinkStyle}>Khóa học của tôi</Link>
                 <Link to="/revenue" style={{ ...navLinkStyle, color: '#0056D2', fontWeight: 600 }}>Xem doanh thu</Link>
               </>
+            )}
+
+            {user && (
+              <Link to="/messages" style={{ ...navLinkStyle, position: 'relative' }}>
+                Tin nhắn
+                {unreadChatCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: '-2px', right: '-6px',
+                    background: '#EF4444', color: '#fff', borderRadius: '50%',
+                    width: '18px', height: '18px', fontSize: '11px', fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>{unreadChatCount}</span>
+                )}
+              </Link>
             )}
 
             <Link to="/cart" style={{ ...navLinkStyle, position: 'relative' }}>
