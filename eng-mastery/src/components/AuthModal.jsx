@@ -19,11 +19,19 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
   const [resendMessage, setResendMessage] = useState('');
   const [resendSuccess, setResendSuccess] = useState(false);
 
+  // Forgot password fields
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+
   useEffect(() => {
     setTab(defaultTab);
     setError('');
     setResendMessage('');
     setResendSuccess(false);
+    setForgotEmail('');
+    setForgotMessage('');
+    setForgotSuccess(false);
   }, [defaultTab, isOpen]);
 
   if (!isOpen) return null;
@@ -100,6 +108,37 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
       setError('');
     } catch {
       setError('Không thể kết nối đến server. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail) {
+      setError('Vui lòng nhập email.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setForgotMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setForgotSuccess(false);
+        setForgotMessage(data.message || 'Gửi yêu cầu đặt lại mật khẩu thất bại.');
+        return;
+      }
+      setForgotSuccess(true);
+      setForgotMessage('Yêu cầu thành công! Vui lòng kiểm tra hộp thư của bạn để lấy liên kết đặt lại mật khẩu.');
+    } catch {
+      setForgotSuccess(false);
+      setForgotMessage('Không thể kết nối đến server. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -185,7 +224,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
           </div>
 
           {/* Tabs */}
-          {tab !== 'resend-verification' ? (
+          {tab !== 'resend-verification' && tab !== 'forgot-password' ? (
             <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB' }}>
               {['login', 'register'].map(t => (
                 <button key={t} onClick={() => { setTab(t); setError(''); }} style={{
@@ -199,9 +238,13 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
                 </button>
               ))}
             </div>
-          ) : (
+          ) : tab === 'resend-verification' ? (
             <div style={{ padding: '12px 0', borderBottom: '1px solid #E5E7EB', fontWeight: 600, fontSize: '16px', color: '#374151' }}>
               Gửi lại email kích hoạt
+            </div>
+          ) : (
+            <div style={{ padding: '12px 0', borderBottom: '1px solid #E5E7EB', fontWeight: 600, fontSize: '16px', color: '#374151' }}>
+              Quên mật khẩu
             </div>
           )}
         </div>
@@ -267,7 +310,13 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
                 />
               </div>
               <div style={{ textAlign: 'right', marginBottom: '20px' }}>
-                <a href="#" style={{ color: '#0056D2', fontSize: '13px', fontWeight: 500 }}>Quên mật khẩu?</a>
+                <button
+                  type="button"
+                  onClick={() => { setTab('forgot-password'); setError(''); }}
+                  style={{ color: '#0056D2', fontSize: '13px', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  Quên mật khẩu?
+                </button>
               </div>
               <button type="submit" disabled={loading} style={{
                 width: '100%', height: '48px', background: loading ? '#93C5FD' : '#0056D2',
@@ -283,6 +332,55 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onAuthSuccess }) => 
                 <button type="button" onClick={() => { setTab('register'); setError(''); }}
                   style={{ color: '#0056D2', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
                   Đăng ký ngay
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* FORGOT PASSWORD FORM */}
+          {tab === 'forgot-password' && (
+            <form onSubmit={handleForgotPasswordSubmit}>
+              {forgotMessage && (
+                <div style={{
+                  background: forgotSuccess ? '#ECFDF5' : '#FEF2F2',
+                  border: forgotSuccess ? '1px solid #A7F3D0' : '1px solid #FECACA',
+                  borderRadius: '4px',
+                  padding: '12px 16px', marginBottom: '16px',
+                  color: forgotSuccess ? '#059669' : '#DC2626', fontSize: '14px',
+                  lineHeight: 1.5
+                }}>
+                  {forgotSuccess ? '✅' : '⚠️'} {forgotMessage}
+                </div>
+              )}
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: 1.5, marginBottom: '16px' }}>
+                  Nhập địa chỉ email đăng ký của bạn. Chúng tôi sẽ gửi một liên kết đặt lại mật khẩu đến email này.
+                </p>
+                <label style={labelStyle}>Địa chỉ Email</label>
+                <input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = '#0056D2'}
+                  onBlur={e => e.target.style.borderColor = '#D1D5DB'}
+                  required
+                />
+              </div>
+              <button type="submit" disabled={loading} style={{
+                width: '100%', height: '48px', background: loading ? '#93C5FD' : '#0056D2',
+                color: '#fff', border: 'none', borderRadius: '4px',
+                fontWeight: 700, fontSize: '16px', cursor: loading ? 'wait' : 'pointer',
+                transition: 'background 0.2s',
+                marginBottom: '16px'
+              }}>
+                {loading ? 'Đang gửi...' : 'Gửi yêu cầu đặt lại mật khẩu'}
+              </button>
+              <div style={{ textAlign: 'center', fontSize: '14px' }}>
+                <button type="button" onClick={() => { setTab('login'); setError(''); setForgotMessage(''); }}
+                  style={{ color: '#0056D2', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+                  Quay lại đăng nhập
                 </button>
               </div>
             </form>

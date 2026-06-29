@@ -442,6 +442,10 @@ const AdminDashboard = () => {
   const [courseManagementStats, setCourseManagementStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [processingCourseToggle, setProcessingCourseToggle] = useState(false);
 
+  // Pagination for MANAGE_COURSES
+  const [courseManagePage, setCourseManagePage] = useState(1);
+  const COURSE_PAGE_SIZE = 10;
+
 
 
 
@@ -1170,7 +1174,7 @@ const AdminDashboard = () => {
                   type="text"
                   placeholder={activeTab === 'COURSES' || activeTab === 'MANAGE_COURSES' ? "Tìm kiếm khóa học..." : activeTab === 'WITHDRAWALS' ? "Tìm giảng viên, STK..." : activeTab === 'REFUNDS' ? "Tìm học viên, khóa học..." : activeTab === 'COMPLAINTS' ? "Tìm học viên, khóa học..." : "Tìm tên, email..."}
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={e => { setSearchQuery(e.target.value); if (activeTab === 'MANAGE_COURSES') setCourseManagePage(1); }}
                   style={{
                     background: '#F9FAFB', border: '1px solid #D1D5DB', borderRadius: '8px',
                     color: '#374151', padding: '8px 12px 8px 36px', fontSize: '13px',
@@ -1182,7 +1186,7 @@ const AdminDashboard = () => {
               {/* Filter */}
               <select
                 value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}
+                onChange={e => { setFilterStatus(e.target.value); if (activeTab === 'MANAGE_COURSES') setCourseManagePage(1); }}
                 style={{
                   background: '#F9FAFB', border: '1px solid #D1D5DB', borderRadius: '8px',
                   color: '#374151', padding: '8px 12px', fontSize: '13px', outline: 'none', cursor: 'pointer',
@@ -1356,112 +1360,204 @@ const AdminDashboard = () => {
             </>
           )}
 
-          {activeTab === 'MANAGE_COURSES' && (
-            <>
-              {loading ? (
-                <div style={{ padding: '60px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '40px', marginBottom: '16px', animation: 'pulse 1.5s infinite' }}>⏳</div>
-                  <p style={{ color: '#9CA3AF' }}>Đang tải danh sách khóa học...</p>
-                </div>
-              ) : allCourses.length === 0 ? (
-                <div style={{ padding: '60px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '40px', marginBottom: '16px' }}>📭</div>
-                  <p style={{ color: '#6B7280', marginBottom: '8px' }}>Chưa có khóa học nào</p>
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
-                    <thead>
-                      <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>ID</th>
-                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Khóa học</th>
-                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Giảng viên</th>
-                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Giá</th>
-                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Trạng thái duyệt</th>
-                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Hiển thị</th>
-                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allCourses.filter(c => {
-                        const q = searchQuery.toLowerCase();
-                        const matchSearch = !searchQuery || c.title?.toLowerCase().includes(q) || c.instructorName?.toLowerCase().includes(q);
-                        const matchStatus = filterStatus === 'ALL' || (filterStatus === 'ACTIVE' ? c.active !== false : c.active === false);
-                        return matchSearch && matchStatus;
-                      }).map((c) => {
-                        const statusColors = {
-                          PENDING: { color: '#D97706', bg: '#FFFBEB', label: 'Chờ duyệt' },
-                          APPROVED: { color: '#059669', bg: '#ECFDF5', label: 'Đã duyệt' },
-                          REJECTED: { color: '#DC2626', bg: '#FEF2F2', label: 'Từ chối' },
-                        };
-                        const st = statusColors[c.status] || { color: '#374151', bg: '#F3F4F6', label: c.status };
-                        return (
-                          <tr key={c.id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background 0.15s' }}>
-                            <td style={{ padding: '14px 16px', color: '#9CA3AF' }}>#{c.id}</td>
-                            <td style={{ padding: '14px 16px', fontWeight: 600 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                {c.thumbnailUrl ? (
-                                  <img src={c.thumbnailUrl} alt={c.title} style={{ width: '40px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
-                                ) : (
-                                  <div style={{ width: '40px', height: '24px', borderRadius: '4px', background: 'linear-gradient(135deg, #E8F1FF, #D1E3FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>📘</div>
-                                )}
-                                <span>{c.title}</span>
-                              </div>
-                            </td>
-                            <td style={{ padding: '14px 16px', color: '#4B5563' }}>{c.instructorName}</td>
-                            <td style={{ padding: '14px 16px', fontWeight: 700 }}>
-                              {c.discountPrice ? (
-                                <div>
-                                  <div style={{ color: '#DC2626' }}>{formatCurrency(c.discountPrice)}</div>
-                                  <div style={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '11px' }}>{formatCurrency(c.price)}</div>
+          {activeTab === 'MANAGE_COURSES' && (() => {
+            const filteredManageCourses = allCourses.filter(c => {
+              const q = searchQuery.toLowerCase();
+              const matchSearch = !searchQuery || c.title?.toLowerCase().includes(q) || c.instructorName?.toLowerCase().includes(q);
+              const matchStatus = filterStatus === 'ALL' || (filterStatus === 'ACTIVE' ? c.active !== false : c.active === false);
+              return matchSearch && matchStatus;
+            });
+            const totalManagePages = Math.max(1, Math.ceil(filteredManageCourses.length / COURSE_PAGE_SIZE));
+            const safePage = Math.min(courseManagePage, totalManagePages);
+            const pagedCourses = filteredManageCourses.slice((safePage - 1) * COURSE_PAGE_SIZE, safePage * COURSE_PAGE_SIZE);
+
+            const pageNumbers = [];
+            for (let i = 1; i <= totalManagePages; i++) {
+              if (i === 1 || i === totalManagePages || (i >= safePage - 2 && i <= safePage + 2)) {
+                pageNumbers.push(i);
+              } else if (pageNumbers[pageNumbers.length - 1] !== '...') {
+                pageNumbers.push('...');
+              }
+            }
+
+            return (
+              <>
+                {loading ? (
+                  <div style={{ padding: '60px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '16px', animation: 'pulse 1.5s infinite' }}>⏳</div>
+                    <p style={{ color: '#9CA3AF' }}>Đang tải danh sách khóa học...</p>
+                  </div>
+                ) : allCourses.length === 0 ? (
+                  <div style={{ padding: '60px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '16px' }}>📭</div>
+                    <p style={{ color: '#6B7280', marginBottom: '8px' }}>Chưa có khóa học nào</p>
+                  </div>
+                ) : filteredManageCourses.length === 0 ? (
+                  <div style={{ padding: '60px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '16px' }}>🔍</div>
+                    <p style={{ color: '#6B7280', marginBottom: '8px' }}>Không tìm thấy khóa học phù hợp</p>
+                    <p style={{ color: '#9CA3AF', fontSize: '13px' }}>Thử thay đổi từ khóa hoặc bộ lọc</p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
+                      <thead>
+                        <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                          <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>ID</th>
+                          <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Khóa học</th>
+                          <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Giảng viên</th>
+                          <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Giá</th>
+                          <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Trạng thái duyệt</th>
+                          <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Hiển thị</th>
+                          <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'left' }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedCourses.map((c) => {
+                          const statusColors = {
+                            PENDING: { color: '#D97706', bg: '#FFFBEB', label: 'Chờ duyệt' },
+                            APPROVED: { color: '#059669', bg: '#ECFDF5', label: 'Đã duyệt' },
+                            REJECTED: { color: '#DC2626', bg: '#FEF2F2', label: 'Từ chối' },
+                          };
+                          const st = statusColors[c.status] || { color: '#374151', bg: '#F3F4F6', label: c.status };
+                          return (
+                            <tr key={c.id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background 0.15s' }}>
+                              <td style={{ padding: '14px 16px', color: '#9CA3AF' }}>#{c.id}</td>
+                              <td style={{ padding: '14px 16px', fontWeight: 600 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {c.thumbnailUrl ? (
+                                    <img src={c.thumbnailUrl} alt={c.title} style={{ width: '40px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
+                                  ) : (
+                                    <div style={{ width: '40px', height: '24px', borderRadius: '4px', background: 'linear-gradient(135deg, #E8F1FF, #D1E3FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>📘</div>
+                                  )}
+                                  <span>{c.title}</span>
                                 </div>
-                              ) : (
-                                <div>{formatCurrency(c.price)}</div>
-                              )}
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <span style={{ color: st.color, background: st.bg, padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}>
-                                {st.label}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <span style={{
-                                background: c.active !== false ? '#D1FAE5' : '#FEE2E2',
-                                color: c.active !== false ? '#065F46' : '#991B1B',
-                                padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
-                              }}>
-                                {c.active !== false ? '✓ Đang mở' : '🚫 Đang ẩn'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <button
-                                disabled={processingCourseToggle}
-                                onClick={() => handleToggleCourseActive(c.id)}
-                                style={{
-                                  background: c.active !== false ? '#FEF2F2' : '#EFF6FF',
-                                  border: '1.5px solid',
-                                  borderColor: c.active !== false ? '#FECACA' : '#BFDBFE',
-                                  color: c.active !== false ? '#DC2626' : '#2563EB',
-                                  padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
-                                  fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {c.active !== false ? '🔒 Ẩn' : '🔓 Hiển thị'}
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              </td>
+                              <td style={{ padding: '14px 16px', color: '#4B5563' }}>{c.instructorName}</td>
+                              <td style={{ padding: '14px 16px', fontWeight: 700 }}>
+                                {c.discountPrice ? (
+                                  <div>
+                                    <div style={{ color: '#DC2626' }}>{formatCurrency(c.discountPrice)}</div>
+                                    <div style={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '11px' }}>{formatCurrency(c.price)}</div>
+                                  </div>
+                                ) : (
+                                  <div>{formatCurrency(c.price)}</div>
+                                )}
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <span style={{ color: st.color, background: st.bg, padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}>
+                                  {st.label}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <span style={{
+                                  background: c.active !== false ? '#D1FAE5' : '#FEE2E2',
+                                  color: c.active !== false ? '#065F46' : '#991B1B',
+                                  padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
+                                }}>
+                                  {c.active !== false ? '✓ Đang mở' : '🚫 Đang ẩn'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <button
+                                  disabled={processingCourseToggle}
+                                  onClick={() => handleToggleCourseActive(c.id)}
+                                  style={{
+                                    background: c.active !== false ? '#FEF2F2' : '#EFF6FF',
+                                    border: '1.5px solid',
+                                    borderColor: c.active !== false ? '#FECACA' : '#BFDBFE',
+                                    color: c.active !== false ? '#DC2626' : '#2563EB',
+                                    padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                    fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {c.active !== false ? '🔒 Ẩn' : '🔓 Hiển thị'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Footer: info + pagination */}
+                <div style={{
+                  padding: '14px 24px',
+                  borderTop: '1px solid #E5E7EB',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  background: '#FAFAFA',
+                }}>
+                  {/* Info */}
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#6B7280', fontSize: '13px' }}>
+                      Hiển thị <b style={{ color: '#374151' }}>{filteredManageCourses.length === 0 ? 0 : (safePage - 1) * COURSE_PAGE_SIZE + 1}</b>–<b style={{ color: '#374151' }}>{Math.min(safePage * COURSE_PAGE_SIZE, filteredManageCourses.length)}</b> / <b style={{ color: '#374151' }}>{filteredManageCourses.length}</b> khóa học
+                    </span>
+                    <span style={{ color: '#9CA3AF', fontSize: '12px' }}>|
+                    </span>
+                    <span style={{ color: '#059669', fontSize: '13px', fontWeight: 600 }}>✓ {courseManagementStats.active} hiển thị</span>
+                    <span style={{ color: '#DC2626', fontSize: '13px', fontWeight: 600 }}>🚫 {courseManagementStats.inactive} ẩn</span>
+                  </div>
+
+                  {/* Pagination controls */}
+                  {totalManagePages > 1 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {/* Prev */}
+                      <button
+                        disabled={safePage === 1}
+                        onClick={() => setCourseManagePage(p => Math.max(1, p - 1))}
+                        style={{
+                          padding: '6px 12px', borderRadius: '6px', border: '1px solid #D1D5DB',
+                          background: safePage === 1 ? '#F9FAFB' : '#fff',
+                          color: safePage === 1 ? '#D1D5DB' : '#374151',
+                          cursor: safePage === 1 ? 'not-allowed' : 'pointer',
+                          fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+                        }}
+                      >‹ Trước</button>
+
+                      {/* Page numbers */}
+                      {pageNumbers.map((p, idx) =>
+                        p === '...' ? (
+                          <span key={`ellipsis-${idx}`} style={{ padding: '0 6px', color: '#9CA3AF', fontSize: '13px' }}>…</span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => setCourseManagePage(p)}
+                            style={{
+                              padding: '6px 11px', borderRadius: '6px', border: '1px solid',
+                              borderColor: safePage === p ? '#4F46E5' : '#D1D5DB',
+                              background: safePage === p ? '#4F46E5' : '#fff',
+                              color: safePage === p ? '#fff' : '#374151',
+                              cursor: 'pointer', fontSize: '13px', fontWeight: safePage === p ? 700 : 500,
+                              transition: 'all 0.15s', minWidth: '34px',
+                            }}
+                          >{p}</button>
+                        )
+                      )}
+
+                      {/* Next */}
+                      <button
+                        disabled={safePage === totalManagePages}
+                        onClick={() => setCourseManagePage(p => Math.min(totalManagePages, p + 1))}
+                        style={{
+                          padding: '6px 12px', borderRadius: '6px', border: '1px solid #D1D5DB',
+                          background: safePage === totalManagePages ? '#F9FAFB' : '#fff',
+                          color: safePage === totalManagePages ? '#D1D5DB' : '#374151',
+                          cursor: safePage === totalManagePages ? 'not-allowed' : 'pointer',
+                          fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+                        }}
+                      >Sau ›</button>
+                    </div>
+                  )}
                 </div>
-              )}
-              <div style={{ padding: '12px 24px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#9CA3AF', fontSize: '13px' }}>Tổng cộng {allCourses.length} khóa học</span>
-                <span style={{ color: '#059669', fontSize: '13px', fontWeight: 600 }}>✓ {courseManagementStats.active} hiển thị / 🚫 {courseManagementStats.inactive} ẩn</span>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
 
           {activeTab === 'WITHDRAWALS' && (
             /* --- WITHDRAWALS PANEL --- */

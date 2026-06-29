@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.example.tmdt.dto.CreateWithdrawalRequest;
+import org.example.tmdt.dto.DailyRevenueDTO;
 import org.example.tmdt.dto.TeacherQuarterRevenueResponse;
 import org.example.tmdt.dto.WithdrawalResponse;
 import org.example.tmdt.security.UserPrincipal;
@@ -39,6 +40,19 @@ public class TeacherPayoutController {
             @Parameter(description = "Quy can thong ke, gia tri tu 1 den 4") @RequestParam Integer quarter,
             @AuthenticationPrincipal UserPrincipal principal) {
         return teacherPayoutService.getMyQuarterRevenue(year, quarter, principal);
+    }
+
+    @Operation(
+            summary = "Doanh thu theo tung ngay trong quy",
+            description = "Tra ve danh sach doanh thu theo tung ngay trong quy, bao gom ca cac ngay khong co don hang (revenue = 0)."
+    )
+    @GetMapping("/daily-revenue")
+    @PreAuthorize("hasAuthority('ROLE_TEACHER')")
+    public List<DailyRevenueDTO> getDailyRevenue(
+            @Parameter(description = "Nam can thong ke, vi du 2026") @RequestParam Integer year,
+            @Parameter(description = "Quy can thong ke, gia tri tu 1 den 4") @RequestParam Integer quarter,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return teacherPayoutService.getDailyRevenue(year, quarter, principal);
     }
 
     @Operation(

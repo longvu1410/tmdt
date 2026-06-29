@@ -349,24 +349,37 @@ const Orders = () => {
                           </div>
                         );
                       }
+                      const isEligibleForRefund = (() => {
+                        if (!order.paidAt) return false;
+                        const paidDate = new Date(order.paidAt);
+                        const diffTime = new Date() - paidDate;
+                        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                        return diffDays <= 3;
+                      })();
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <span style={{ fontSize: '13px', color: '#10B981', fontWeight: 600 }}>✓ Đã thanh toán</span>
-                          <button
-                            onClick={() => {
-                              setRefundingOrderId(order.id);
-                              setRefundReason('');
-                              setShowRefundModal(true);
-                            }}
-                            style={{
-                              padding: '4px 8px', borderRadius: '4px', fontSize: '11.5px',
-                              fontWeight: 600, border: '1px solid #DC2626', background: 'none',
-                              color: '#DC2626', cursor: 'pointer', transition: 'all 0.2s',
-                              alignSelf: 'flex-start',
-                            }}
-                          >
-                            💸 Hoàn tiền
-                          </button>
+                          {isEligibleForRefund ? (
+                            <button
+                              onClick={() => {
+                                setRefundingOrderId(order.id);
+                                setRefundReason('');
+                                setShowRefundModal(true);
+                              }}
+                              style={{
+                                padding: '4px 8px', borderRadius: '4px', fontSize: '11.5px',
+                                fontWeight: 600, border: '1px solid #DC2626', background: 'none',
+                                color: '#DC2626', cursor: 'pointer', transition: 'all 0.2s',
+                                alignSelf: 'flex-start',
+                              }}
+                            >
+                              💸 Hoàn tiền
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '11.5px', color: '#9CA3AF' }} title="Chỉ được hoàn tiền trong vòng 3 ngày kể từ khi thanh toán">
+                              ⚠️ Hết hạn hoàn tiền
+                            </span>
+                          )}
                         </div>
                       );
                     })()}

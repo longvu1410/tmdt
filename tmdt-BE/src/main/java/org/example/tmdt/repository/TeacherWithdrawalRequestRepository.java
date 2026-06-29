@@ -37,4 +37,16 @@ public interface TeacherWithdrawalRequestRepository extends JpaRepository<Teache
     BigDecimal sumAmountByTeacherAndStatuses(
             Long teacherId,
             Collection<WithdrawalStatus> statuses);
+
+    @Query("""
+            select coalesce(sum(w.amount), 0)
+            from TeacherWithdrawalRequest w
+            where w.teacher.id = :teacherId
+              and w.year <= :year
+              and w.status in :statuses
+            """)
+    BigDecimal sumAmountByTeacherAndYearBeforeAndStatuses(
+            Long teacherId,
+            Integer year,
+            Collection<WithdrawalStatus> statuses);
 }

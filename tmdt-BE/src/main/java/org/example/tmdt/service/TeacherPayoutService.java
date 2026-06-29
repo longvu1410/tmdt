@@ -1,12 +1,17 @@
 package org.example.tmdt.service;
 
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.example.tmdt.dto.CreateWithdrawalRequest;
+import org.example.tmdt.dto.DailyRevenueDTO;
 import org.example.tmdt.dto.ProcessWithdrawalRequest;
 import org.example.tmdt.dto.TeacherQuarterRevenueResponse;
 import org.example.tmdt.dto.WithdrawalResponse;
@@ -108,6 +113,59 @@ public class TeacherPayoutService {
         return toResponse(withdrawal);
     }
 
+    @Transactional(readOnly = true)
+    public List<DailyRevenueDTO> getDailyRevenue(Integer year, Integer quarter, UserPrincipal principal) {
+        AppUser teacher = getUser(principal.getId(), "Teacher account not found");
+        return buildDailyRevenue(teacher, year, quarter);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DailyRevenueDTO> getTeacherDailyRevenue(Long teacherId, Integer year, Integer quarter) {
+        AppUser teacher = getUser(teacherId, "Teacher not found");
+        return buildDailyRevenue(teacher, year, quarter);
+    }
+
+    private List<DailyRevenueDTO> buildDailyRevenue(AppUser teacher, Integer year, Integer quarter) {
+        validatePeriod(year, quarter);
+        QuarterRange range = toQuarterRange(year, quarter);
+
+        List<Object[]> rawResults = courseOrderRepository.findDailyRevenueByTeacherAndStatusAndPaidAtBetween(
+                teacher.getId(),
+                OrderStatus.PAID.name(),
+                range.start(),
+                range.end());
+
+        // Convert raw results to map
+        Map<LocalDate, DailyRevenueDTO> dataMap = rawResults.stream()
+                .collect(Collectors.toMap(
+                        row -> toLocalDate(row[0]),
+                        row -> DailyRevenueDTO.builder()
+                                .date(toLocalDate(row[0]))
+                                .revenue((BigDecimal) row[1])
+                                .orderCount(((Number) row[2]).longValue())
+                                .build()
+                ));
+
+        // Fill all days in the quarter range
+        LocalDate startDate = LocalDate.of(year, (quarter - 1) * 3 + 1, 1);
+        LocalDate endDate = startDate.plusMonths(3);
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        // Don't go past today
+        if (endDate.isAfter(today.plusDays(1))) {
+            endDate = today.plusDays(1);
+        }
+
+        List<DailyRevenueDTO> result = new ArrayList<>();
+        for (LocalDate d = startDate; d.isBefore(endDate); d = d.plusDays(1)) {
+            result.add(dataMap.getOrDefault(d, DailyRevenueDTO.builder()
+                    .date(d)
+                    .revenue(BigDecimal.ZERO)
+                    .orderCount(0L)
+                    .build()));
+        }
+        return result;
+    }
+
     private TeacherQuarterRevenueResponse buildQuarterRevenue(AppUser teacher, Integer year, Integer quarter) {
         validatePeriod(year, quarter);
         QuarterRange range = toQuarterRange(year, quarter);
@@ -117,6 +175,11 @@ public class TeacherPayoutService {
                 range.start(),
                 range.end());
         long paidOrderCount = courseOrderRepository.countByCourse_Teacher_IdAndStatusAndPaidAtBetween(
+                teacher.getId(),
+                OrderStatus.PAID,
+                range.start(),
+                range.end());
+        long coursesSoldCount = courseOrderRepository.countDistinctCoursesByTeacherAndStatusAndPaidAtBetween(
                 teacher.getId(),
                 OrderStatus.PAID,
                 range.start(),
@@ -136,19 +199,25 @@ public class TeacherPayoutService {
                 year,
                 quarter,
                 List.of(WithdrawalStatus.PENDING, WithdrawalStatus.APPROVED));
+        
+        // availableAmount reflects the cumulative balance up to the end of the selected year
+        // so that it remains constant when switching quarters within the same year.
+        Instant endOfYear = LocalDate.of(year + 1, 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
         BigDecimal cumulativeGrossRevenue = courseOrderRepository.sumTotalAmountByTeacherAndStatusAndPaidAtBefore(
                 teacher.getId(),
                 OrderStatus.PAID,
-                range.end());
-        BigDecimal allTimeRequestedOrPaidAmount = withdrawalRepository.sumAmountByTeacherAndStatuses(
+                endOfYear);
+        BigDecimal yearEndRequestedOrPaidAmount = withdrawalRepository.sumAmountByTeacherAndYearBeforeAndStatuses(
                 teacher.getId(),
+                year,
                 List.of(WithdrawalStatus.PENDING, WithdrawalStatus.APPROVED));
-        BigDecimal allTimeApprovedWithdrawalAmount = withdrawalRepository.sumAmountByTeacherAndStatuses(
+        BigDecimal yearEndApprovedWithdrawalAmount = withdrawalRepository.sumAmountByTeacherAndYearBeforeAndStatuses(
                 teacher.getId(),
+                year,
                 List.of(WithdrawalStatus.APPROVED));
 
-        BigDecimal availableAmount = cumulativeGrossRevenue.subtract(allTimeRequestedOrPaidAmount).max(BigDecimal.ZERO);
-        BigDecimal platformBalance = cumulativeGrossRevenue.subtract(allTimeApprovedWithdrawalAmount).max(BigDecimal.ZERO);
+        BigDecimal availableAmount = cumulativeGrossRevenue.subtract(yearEndRequestedOrPaidAmount).max(BigDecimal.ZERO);
+        BigDecimal platformBalance = cumulativeGrossRevenue.subtract(yearEndApprovedWithdrawalAmount).max(BigDecimal.ZERO);
 
         return TeacherQuarterRevenueResponse.builder()
                 .teacherId(teacher.getId())
@@ -158,6 +227,7 @@ public class TeacherPayoutService {
                 .periodStart(range.start())
                 .periodEnd(range.end())
                 .paidOrderCount(paidOrderCount)
+                .coursesSoldCount(coursesSoldCount)
                 .grossRevenue(grossRevenue)
                 .pendingWithdrawalAmount(pendingWithdrawalAmount)
                 .approvedWithdrawalAmount(approvedWithdrawalAmount)
@@ -241,6 +311,22 @@ public class TeacherPayoutService {
             return null;
         }
         return value.trim();
+    }
+
+    private LocalDate toLocalDate(Object val) {
+        if (val == null) {
+            return null;
+        }
+        if (val instanceof java.time.LocalDate) {
+            return (java.time.LocalDate) val;
+        }
+        if (val instanceof java.sql.Date) {
+            return ((java.sql.Date) val).toLocalDate();
+        }
+        if (val instanceof java.util.Date) {
+            return new java.sql.Date(((java.util.Date) val).getTime()).toLocalDate();
+        }
+        return LocalDate.parse(val.toString());
     }
 
     private record QuarterRange(Instant start, Instant end) {

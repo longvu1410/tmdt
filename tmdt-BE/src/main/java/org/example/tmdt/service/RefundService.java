@@ -46,6 +46,14 @@ public class RefundService {
             throw new BadRequestException("Chỉ đơn hàng đã thanh toán mới được yêu cầu hoàn tiền");
         }
 
+        if (order.getPaidAt() == null) {
+            throw new BadRequestException("Đơn hàng chưa có thời gian thanh toán cụ thể");
+        }
+        Instant limit = order.getPaidAt().plus(java.time.Duration.ofDays(3));
+        if (Instant.now().isAfter(limit)) {
+            throw new BadRequestException("Yêu cầu hoàn tiền đã quá hạn (chỉ chấp nhận trong vòng 3 ngày kể từ khi thanh toán)");
+        }
+
         // Kiểm tra xem đã có yêu cầu hoàn tiền đang chờ hoặc đã được duyệt chưa
         boolean exists = refundRequestRepository.existsByOrder_IdAndStatusIn(
                 order.getId(),

@@ -9,8 +9,11 @@ import org.example.tmdt.dto.RegisterRequest;
 import org.example.tmdt.dto.RegisterResponse;
 import org.example.tmdt.dto.ResendVerificationRequest;
 import org.example.tmdt.dto.UserResponse;
+import org.example.tmdt.dto.ForgotPasswordRequest;
+import org.example.tmdt.dto.ResetPasswordRequest;
 import org.example.tmdt.security.UserPrincipal;
 import org.example.tmdt.service.AuthService;
+import org.example.tmdt.service.PasswordResetService;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -61,5 +65,17 @@ public class AuthController {
     @PreAuthorize("isAuthenticated()")
     public UserResponse me(@AuthenticationPrincipal UserPrincipal principal) {
         return authService.getCurrentUser(principal);
+    }
+
+    @PostMapping("/forgot-password")
+    public Map<String, String> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        passwordResetService.sendResetEmail(request.getEmail());
+        return Map.of("message", "Liên kết đặt lại mật khẩu đã được gửi đến email của bạn.");
+    }
+
+    @PostMapping("/reset-password")
+    public Map<String, String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResetService.resetPassword(request.getToken(), request.getNewPassword());
+        return Map.of("message", "Mật khẩu của bạn đã được đặt lại thành công.");
     }
 }

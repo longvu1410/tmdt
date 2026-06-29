@@ -1,29 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../services/apiService';
 
-// ── Constants ─────────────────────────────────────────────────────
 const TOPICS = [
-  { code: 'IELTS', label: 'IELTS', icon: '🎯' },
-  { code: 'TOEIC', label: 'TOEIC', icon: '📊' },
-  { code: 'COMMUNICATION', label: 'Giao tiếp', icon: '💬' },
-  { code: 'GRAMMAR', label: 'Ngữ pháp', icon: '📖' },
-  { code: 'PRONUNCIATION', label: 'Phát âm', icon: '🎙️' },
-  { code: 'WRITING', label: 'Viết', icon: '✍️' },
+  { code: 'IELTS', label: 'IELTS' },
+  { code: 'TOEIC', label: 'TOEIC' },
+  { code: 'COMMUNICATION', label: 'Giao tiếp' },
+  { code: 'GRAMMAR', label: 'Ngữ pháp' },
+  { code: 'PRONUNCIATION', label: 'Phát âm' },
+  { code: 'WRITING', label: 'Viết' },
 ];
 
 const LEVELS = [
-  { code: 'BEGINNER', label: 'Sơ cấp', color: '#059669' },
-  { code: 'INTERMEDIATE', label: 'Trung cấp', color: '#D97706' },
-  { code: 'ADVANCED', label: 'Nâng cao', color: '#DC2626' },
+  { code: 'BEGINNER', label: 'Sơ cấp' },
+  { code: 'INTERMEDIATE', label: 'Trung cấp' },
+  { code: 'ADVANCED', label: 'Nâng cao' },
 ];
 
 const PRICE_RANGES = [
   { label: 'Tất cả giá', min: 0, max: Infinity },
   { label: 'Miễn phí', min: 0, max: 0 },
   { label: 'Dưới 500.000đ', min: 1, max: 500000 },
-  { label: '500.000đ – 1.000.000đ', min: 500000, max: 1000000 },
-  { label: '1.000.000đ – 2.000.000đ', min: 1000000, max: 2000000 },
+  { label: '500.000đ - 1.000.000đ', min: 500000, max: 1000000 },
+  { label: '1.000.000đ - 2.000.000đ', min: 1000000, max: 2000000 },
   { label: 'Trên 2.000.000đ', min: 2000000, max: Infinity },
 ];
 
@@ -35,149 +34,134 @@ const SORT_OPTIONS = [
   { value: 'price_desc', label: 'Giá giảm dần' },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────────
+const ITEMS_PER_PAGE = 6;
+
 const formatPrice = (price) => {
   if (price === 0 || price == null) return 'Miễn phí';
-  return new Intl.NumberFormat('vi-VN').format(price) + 'đ';
+  return `${new Intl.NumberFormat('vi-VN').format(price)}đ`;
 };
 
-const levelLabel = { BEGINNER: 'Sơ cấp', INTERMEDIATE: 'Trung cấp', ADVANCED: 'Nâng cao' };
-const levelColor = { BEGINNER: '#059669', INTERMEDIATE: '#D97706', ADVANCED: '#DC2626' };
+const levelLabel = {
+  BEGINNER: 'Sơ cấp',
+  INTERMEDIATE: 'Trung cấp',
+  ADVANCED: 'Nâng cao',
+};
 
-// ── Skeleton ──────────────────────────────────────────────────────
+const getEffectivePrice = (course) => (
+  course.discountPrice !== null && course.discountPrice !== undefined
+    ? course.discountPrice
+    : course.price ?? 0
+);
+
 const Skeleton = () => (
-  <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
-    <div style={{ height: '170px', background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />
-    <div style={{ padding: '16px 18px 18px' }}>
-      {[80, 60, 45, 30].map((w, i) => (
-        <div key={i} style={{ height: i === 1 ? 18 : 13, width: `${w}%`, background: '#E5E7EB', borderRadius: '4px', marginBottom: '10px' }} />
+  <div className="course-card">
+    <div
+      className="course-card__media"
+      style={{
+        background:
+          'linear-gradient(90deg, #f0f0f0 25%, #e2e8f0 50%, #f0f0f0 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 1.5s infinite',
+      }}
+    />
+    <div className="course-card__body">
+      {[42, 88, 62, 44].map((width, index) => (
+        <div
+          key={width}
+          style={{
+            width: `${width}%`,
+            height: index === 1 ? 18 : 13,
+            marginBottom: 10,
+            borderRadius: 2,
+            background: '#e5e7eb',
+          }}
+        />
       ))}
     </div>
   </div>
 );
 
-// ── Course Card ───────────────────────────────────────────────────
 const CourseCard = ({ course }) => {
-  const { id, title, instructorName, price, discountPrice, rating, ratingCount, level, thumbnailUrl, studentCount, totalDuration } = course;
   const [imgErr, setImgErr] = useState(false);
-
+  const {
+    id,
+    title,
+    instructorName,
+    price,
+    discountPrice,
+    rating,
+    ratingCount,
+    level,
+    thumbnailUrl,
+    studentCount,
+    totalDuration,
+  } = course;
+  const stars = Math.min(Math.round(Number(rating || 0)), 5);
 
   return (
-    <Link to={`/course/${id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-      <div style={{
-        background: '#fff', borderRadius: '10px', border: '1px solid #E5E7EB',
-        overflow: 'hidden', height: '100%',
-        transition: 'box-shadow 0.2s, transform 0.2s',
-      }}
-        onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-        onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
-      >
-        {/* Thumbnail */}
-        <div style={{ position: 'relative', height: '170px', background: 'linear-gradient(135deg, #E8F1FF, #D1E3FF)', overflow: 'hidden' }}>
-          {thumbnailUrl && !imgErr ? (
-            <img src={thumbnailUrl} alt={title} onError={() => setImgErr(true)}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          ) : (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '52px' }}>
-              {TOPICS.find(t => t.code === course.topic)?.icon || '📚'}
-            </div>
-          )}
-          {/* Level badge */}
-          {level && (
-            <span style={{
-              position: 'absolute', top: '10px', left: '10px',
-              background: levelColor[level] || '#6B7280', color: '#fff',
-              padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 700,
-            }}>
-              {levelLabel[level] || level}
-            </span>
-          )}
+    <Link className="course-card" to={`/course/${id}`}>
+      <div className="course-card__media">
+        {thumbnailUrl && !imgErr ? (
+          <img src={thumbnailUrl} alt={title} onError={() => setImgErr(true)} />
+        ) : (
+          <span className="course-card__fallback">E</span>
+        )}
+      </div>
+      <div className="course-card__body">
+        {level && <div className="course-card__level">{levelLabel[level] || level}</div>}
+        <h3 className="course-card__title">{title || 'Khóa học tiếng Anh'}</h3>
+        <p className="course-card__instructor">{instructorName || 'EngMastery'}</p>
+
+        {Number(rating) > 0 && (
+          <div className="course-card__meta">
+            <span className="rating">{Number(rating).toFixed(1)}</span>
+            <span className="stars">{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
+            {ratingCount > 0 && <span>({Number(ratingCount).toLocaleString('vi-VN')})</span>}
+          </div>
+        )}
+
+        <div className="course-card__meta">
+          {studentCount > 0 && <span>{Number(studentCount).toLocaleString('vi-VN')} học viên</span>}
+          {totalDuration && <span>{totalDuration}</span>}
         </div>
 
-        {/* Info */}
-        <div style={{ padding: '16px 18px 18px' }}>
-          <h3 style={{ fontWeight: 700, fontSize: '15px', lineHeight: 1.35, marginBottom: '6px', color: '#111827',
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {title}
-          </h3>
-          <p style={{ color: '#6B7280', fontSize: '13px', marginBottom: '10px' }}>{instructorName}</p>
-
-          {/* Rating */}
-          {rating > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '10px' }}>
-              <span style={{ color: '#F59E0B', fontWeight: 700, fontSize: '13px' }}>{Number(rating).toFixed(1)}</span>
-              <span style={{ color: '#F59E0B', fontSize: '12px' }}>
-                {'★'.repeat(Math.min(Math.round(rating), 5))}{'☆'.repeat(Math.max(0, 5 - Math.round(rating)))}
-              </span>
-              {ratingCount > 0 && <span style={{ color: '#9CA3AF', fontSize: '11px' }}>({ratingCount})</span>}
-            </div>
+        <div className="course-card__price">
+          {discountPrice !== null && discountPrice !== undefined && discountPrice >= 0 ? (
+            <>
+              {formatPrice(discountPrice)}
+              <span className="price-old">{formatPrice(price)}</span>
+            </>
+          ) : (
+            formatPrice(price)
           )}
-
-          {/* Meta */}
-          <div style={{ display: 'flex', gap: '12px', color: '#9CA3AF', fontSize: '12px', marginBottom: '12px' }}>
-            {studentCount > 0 && <span>👥 {studentCount.toLocaleString('vi-VN')}</span>}
-            {totalDuration && <span>⏱ {totalDuration}</span>}
-          </div>
-
-          {/* Price */}
-          <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: '12px' }}>
-            {discountPrice !== null && discountPrice !== undefined && discountPrice >= 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: 800, fontSize: '17px', color: '#DC2626' }}>{formatPrice(discountPrice)}</span>
-                <span style={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '13px' }}>{formatPrice(price)}</span>
-              </div>
-            ) : (
-              <span style={{
-                fontWeight: 800, fontSize: '17px',
-                color: price === 0 || price == null ? '#059669' : '#111827',
-              }}>
-                {formatPrice(price)}
-              </span>
-            )}
-          </div>
-
         </div>
       </div>
     </Link>
   );
 };
 
-// ── Filter Checkbox ───────────────────────────────────────────────
-const FilterCheck = ({ checked, onChange, children }) => (
-  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '5px 0', fontSize: '14px', color: checked ? '#0056D2' : '#374151' }}>
-    <input type="checkbox" checked={checked} onChange={onChange}
-      style={{ width: '16px', height: '16px', accentColor: '#0056D2', cursor: 'pointer' }} />
-    {children}
+const FilterCheck = ({ checked, onChange, children, type = 'checkbox', name }) => (
+  <label className="filter-option">
+    <input type={type} name={name} checked={checked} onChange={onChange} />
+    <span>{children}</span>
   </label>
 );
 
-// ── Main Page ─────────────────────────────────────────────────────
 const CoursesPage = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [allCourses, setAllCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Pagination state
-  const ITEMS_PER_PAGE = 6;
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Filter state
   const [selectedTopics, setSelectedTopics] = useState(() => {
-    const t = searchParams.get('topic');
-    return t ? [t] : [];
+    const topic = searchParams.get('topic');
+    return topic ? [topic] : [];
   });
   const [selectedLevels, setSelectedLevels] = useState([]);
-  const [priceRange, setPriceRange] = useState(0); // index into PRICE_RANGES
+  const [priceRange, setPriceRange] = useState(0);
   const [sort, setSort] = useState('newest');
   const [searchText, setSearchText] = useState(searchParams.get('q') || '');
 
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchText, selectedTopics, selectedLevels, priceRange, sort]);
-
-  // Fetch all courses
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
@@ -186,84 +170,87 @@ const CoursesPage = () => {
         const res = await apiFetch('/api/courses');
         if (!res.ok) throw new Error('Không thể tải khóa học');
         const data = await res.json();
-        setAllCourses(Array.isArray(data) ? data : []);
+        setAllCourses(Array.isArray(data) ? data : data.content ?? data.data ?? data.courses ?? []);
       } catch (err) {
         setError(err.message || 'Có lỗi xảy ra');
       } finally {
         setLoading(false);
       }
     };
+
     fetchAll();
   }, []);
 
-  // Toggle topic
   const toggleTopic = (code) => {
-    setSelectedTopics(prev => prev.includes(code) ? prev.filter(t => t !== code) : [...prev, code]);
+    setCurrentPage(1);
+    setSelectedTopics((prev) => (
+      prev.includes(code) ? prev.filter((topic) => topic !== code) : [...prev, code]
+    ));
   };
 
-  // Toggle level
   const toggleLevel = (code) => {
-    setSelectedLevels(prev => prev.includes(code) ? prev.filter(l => l !== code) : [...prev, code]);
+    setCurrentPage(1);
+    setSelectedLevels((prev) => (
+      prev.includes(code) ? prev.filter((level) => level !== code) : [...prev, code]
+    ));
   };
 
-  // Apply filters + sort
   const filtered = (() => {
     let list = [...allCourses];
 
-    // Search text
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
-      list = list.filter(c =>
-        c.title?.toLowerCase().includes(q) ||
-        c.instructorName?.toLowerCase().includes(q) ||
-        c.description?.toLowerCase().includes(q)
-      );
+      list = list.filter((course) => (
+        course.title?.toLowerCase().includes(q)
+        || course.instructorName?.toLowerCase().includes(q)
+        || course.description?.toLowerCase().includes(q)
+      ));
     }
 
-    // Topics
     if (selectedTopics.length > 0) {
-      list = list.filter(c => selectedTopics.includes(c.topic));
+      list = list.filter((course) => selectedTopics.includes(course.topic));
     }
 
-    // Levels
     if (selectedLevels.length > 0) {
-      list = list.filter(c => selectedLevels.includes(c.level));
+      list = list.filter((course) => selectedLevels.includes(course.level));
     }
 
-    // Price range
     const { min, max } = PRICE_RANGES[priceRange];
     if (priceRange !== 0) {
-      list = list.filter(c => {
-        const p = c.discountPrice !== null && c.discountPrice !== undefined ? c.discountPrice : (c.price ?? 0);
-        return p >= min && (max === Infinity ? true : p <= max);
+      list = list.filter((course) => {
+        const priceValue = getEffectivePrice(course);
+        return priceValue >= min && (max === Infinity || priceValue <= max);
       });
     }
 
-    // Sort
     switch (sort) {
-      case 'popular': list.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0)); break;
-      case 'rating': list.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
-      case 'price_asc': list.sort((a, b) => {
-        const pa = a.discountPrice !== null && a.discountPrice !== undefined ? a.discountPrice : (a.price || 0);
-        const pb = b.discountPrice !== null && b.discountPrice !== undefined ? b.discountPrice : (b.price || 0);
-        return pa - pb;
-      }); break;
-      case 'price_desc': list.sort((a, b) => {
-        const pa = a.discountPrice !== null && a.discountPrice !== undefined ? a.discountPrice : (a.price || 0);
-        const pb = b.discountPrice !== null && b.discountPrice !== undefined ? b.discountPrice : (b.price || 0);
-        return pb - pa;
-      }); break;
-      default: break; // newest = default API order
+      case 'popular':
+        list.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0));
+        break;
+      case 'rating':
+        list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        break;
+      case 'price_asc':
+        list.sort((a, b) => getEffectivePrice(a) - getEffectivePrice(b));
+        break;
+      case 'price_desc':
+        list.sort((a, b) => getEffectivePrice(b) - getEffectivePrice(a));
+        break;
+      default:
+        break;
     }
-
 
     return list;
   })();
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginatedCourses = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const paginatedCourses = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const clearFilters = () => {
+    setCurrentPage(1);
     setSelectedTopics([]);
     setSelectedLevels([]);
     setPriceRange(0);
@@ -271,249 +258,217 @@ const CoursesPage = () => {
     setSort('newest');
   };
 
-  const hasFilters = selectedTopics.length > 0 || selectedLevels.length > 0 || priceRange !== 0 || searchText.trim();
+  const hasFilters = selectedTopics.length > 0
+    || selectedLevels.length > 0
+    || priceRange !== 0
+    || Boolean(searchText.trim());
 
   return (
-    <div>
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-      `}</style>
+    <div className="courses-page">
+      <section className="courses-header">
+        <div className="container">
+          <h1>Khóa học tiếng Anh trực tuyến</h1>
+          <p className="section-subtitle">
+            {loading ? 'Đang tải khóa học...' : `${filtered.length} kết quả phù hợp`}
+          </p>
 
-      {/* Page header */}
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>Tất cả khóa học</h1>
-        <p style={{ color: '#6B7280', fontSize: '15px' }}>
-          {loading ? 'Đang tải...' : `${filtered.length} khóa học`}
-          {hasFilters && ' (đang lọc)'}
-        </p>
-      </div>
-
-      {/* Search bar + Sort */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
-          <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: '16px' }}>🔍</span>
-          <input
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-            placeholder="Tìm kiếm khóa học, giảng viên..."
-            style={{
-              width: '100%', height: '44px', border: '1px solid #D1D5DB', borderRadius: '8px',
-              padding: '0 14px 0 42px', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-              transition: 'border-color 0.2s',
-            }}
-            onFocus={e => e.target.style.borderColor = '#0056D2'}
-            onBlur={e => e.target.style.borderColor = '#D1D5DB'}
-          />
-        </div>
-        <select value={sort} onChange={e => setSort(e.target.value)} style={{
-          height: '44px', border: '1px solid #D1D5DB', borderRadius: '8px',
-          padding: '0 36px 0 14px', fontSize: '14px', outline: 'none',
-          background: '#fff url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236B7280\' fill=\'none\' stroke-width=\'1.5\'/%3E%3C/svg%3E") no-repeat right 12px center',
-          appearance: 'none', cursor: 'pointer',
-        }}>
-          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
-
-      {/* Active filter chips */}
-      {hasFilters && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
-          {selectedTopics.map(t => {
-            const topic = TOPICS.find(x => x.code === t);
-            return (
-              <span key={t} style={{ background: '#E8F1FF', color: '#0056D2', padding: '4px 12px', borderRadius: '99px', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {topic?.icon} {topic?.label}
-                <button onClick={() => toggleTopic(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0056D2', fontWeight: 700, fontSize: '14px', padding: 0, lineHeight: 1 }}>×</button>
-              </span>
-            );
-          })}
-          {selectedLevels.map(l => {
-            const lv = LEVELS.find(x => x.code === l);
-            return (
-              <span key={l} style={{ background: '#ECFDF5', color: '#059669', padding: '4px 12px', borderRadius: '99px', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {lv?.label}
-                <button onClick={() => toggleLevel(l)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669', fontWeight: 700, fontSize: '14px', padding: 0, lineHeight: 1 }}>×</button>
-              </span>
-            );
-          })}
-          {priceRange !== 0 && (
-            <span style={{ background: '#FFFBEB', color: '#D97706', padding: '4px 12px', borderRadius: '99px', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              💰 {PRICE_RANGES[priceRange].label}
-              <button onClick={() => setPriceRange(0)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D97706', fontWeight: 700, fontSize: '14px', padding: 0, lineHeight: 1 }}>×</button>
-            </span>
-          )}
-          <button onClick={clearFilters} style={{ background: 'none', border: '1px solid #D1D5DB', color: '#6B7280', padding: '4px 14px', borderRadius: '99px', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
-            Xóa tất cả
-          </button>
-        </div>
-      )}
-
-      {/* Main layout: sidebar + grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '28px', alignItems: 'start' }}>
-
-        {/* ── SIDEBAR ── */}
-        <aside style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '10px', padding: '20px', position: 'sticky', top: '80px' }}>
-
-          {/* Topic */}
-          <div style={{ marginBottom: '24px' }}>
-            <h3 style={{ fontWeight: 700, fontSize: '15px', marginBottom: '12px', color: '#111827' }}>📌 Chủ đề</h3>
-            {TOPICS.map(t => (
-              <FilterCheck key={t.code} checked={selectedTopics.includes(t.code)} onChange={() => toggleTopic(t.code)}>
-                <span>{t.icon} {t.label}</span>
-              </FilterCheck>
-            ))}
+          <div className="courses-tools">
+            <div className="course-search">
+              <span aria-hidden="true">⌕</span>
+              <input
+                value={searchText}
+                onChange={(e) => {
+                  setCurrentPage(1);
+                  setSearchText(e.target.value);
+                }}
+                placeholder="Bạn muốn học gì?"
+              />
+            </div>
+            <select
+              className="sort-select"
+              value={sort}
+              onChange={(e) => {
+                setCurrentPage(1);
+                setSort(e.target.value);
+              }}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </div>
 
-          <div style={{ borderTop: '1px solid #E5E7EB', marginBottom: '20px' }} />
-
-          {/* Level */}
-          <div style={{ marginBottom: '24px' }}>
-            <h3 style={{ fontWeight: 700, fontSize: '15px', marginBottom: '12px', color: '#111827' }}>📊 Cấp độ</h3>
-            {LEVELS.map(l => (
-              <FilterCheck key={l.code} checked={selectedLevels.includes(l.code)} onChange={() => toggleLevel(l.code)}>
-                <span style={{ color: selectedLevels.includes(l.code) ? l.color : 'inherit' }}>{l.label}</span>
-              </FilterCheck>
-            ))}
-          </div>
-
-          <div style={{ borderTop: '1px solid #E5E7EB', marginBottom: '20px' }} />
-
-          {/* Price range */}
-          <div>
-            <h3 style={{ fontWeight: 700, fontSize: '15px', marginBottom: '12px', color: '#111827' }}>💰 Khoảng giá</h3>
-            {PRICE_RANGES.map((range, idx) => (
-              <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '5px 0', fontSize: '14px', color: priceRange === idx ? '#0056D2' : '#374151' }}>
-                <input type="radio" name="price" checked={priceRange === idx} onChange={() => setPriceRange(idx)}
-                  style={{ accentColor: '#0056D2', cursor: 'pointer' }} />
-                {range.label}
-              </label>
-            ))}
-          </div>
-
-          {/* Clear */}
           {hasFilters && (
-            <>
-              <div style={{ borderTop: '1px solid #E5E7EB', marginTop: '20px', paddingTop: '16px' }} />
-              <button onClick={clearFilters} style={{
-                width: '100%', padding: '10px', border: '1px solid #D1D5DB',
-                background: '#fff', color: '#374151', borderRadius: '6px',
-                cursor: 'pointer', fontWeight: 600, fontSize: '14px',
-              }}>
-                🗑 Xóa tất cả bộ lọc
-              </button>
-            </>
+            <div className="active-chips">
+              {selectedTopics.map((code) => {
+                const topic = TOPICS.find((item) => item.code === code);
+                return (
+                  <span className="chip" key={code}>
+                    {topic?.label || code}
+                    <button type="button" onClick={() => toggleTopic(code)}>×</button>
+                  </span>
+                );
+              })}
+              {selectedLevels.map((code) => {
+                const level = LEVELS.find((item) => item.code === code);
+                return (
+                  <span className="chip" key={code}>
+                    {level?.label || code}
+                    <button type="button" onClick={() => toggleLevel(code)}>×</button>
+                  </span>
+                );
+              })}
+              {priceRange !== 0 && (
+                <span className="chip">
+                  {PRICE_RANGES[priceRange].label}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentPage(1);
+                      setPriceRange(0);
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {searchText.trim() && (
+                <span className="chip">
+                  {searchText}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentPage(1);
+                      setSearchText('');
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              <button className="chip" type="button" onClick={clearFilters}>Xóa tất cả</button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="container courses-layout">
+        <aside className="filter-rail">
+          <div className="filter-title">Bộ lọc</div>
+
+          <div className="filter-group">
+            <h3>Chủ đề</h3>
+            {TOPICS.map((topic) => (
+              <FilterCheck
+                key={topic.code}
+                checked={selectedTopics.includes(topic.code)}
+                onChange={() => toggleTopic(topic.code)}
+              >
+                {topic.label}
+              </FilterCheck>
+            ))}
+          </div>
+
+          <div className="filter-group">
+            <h3>Cấp độ</h3>
+            {LEVELS.map((level) => (
+              <FilterCheck
+                key={level.code}
+                checked={selectedLevels.includes(level.code)}
+                onChange={() => toggleLevel(level.code)}
+              >
+                {level.label}
+              </FilterCheck>
+            ))}
+          </div>
+
+          <div className="filter-group">
+            <h3>Khoảng giá</h3>
+            {PRICE_RANGES.map((range, index) => (
+              <FilterCheck
+                key={range.label}
+                type="radio"
+                name="price"
+                checked={priceRange === index}
+                onChange={() => {
+                  setCurrentPage(1);
+                  setPriceRange(index);
+                }}
+              >
+                {range.label}
+              </FilterCheck>
+            ))}
+          </div>
+
+          {hasFilters && (
+            <button className="btn btn-secondary" style={{ width: '100%', marginTop: 18 }} onClick={clearFilters}>
+              Xóa bộ lọc
+            </button>
           )}
         </aside>
 
-        {/* ── COURSE GRID ── */}
-        <div>
-          {/* Error */}
+        <section>
           {error && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '14px 16px', borderRadius: '8px', color: '#DC2626', marginBottom: '20px' }}>
-              ⚠️ {error}
+            <div className="message-box" style={{ marginBottom: 18, color: '#b32d0f', background: '#fff7f4' }}>
+              {error}
             </div>
           )}
 
-          {/* Loading skeletons */}
           {loading && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-              {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} />)}
+            <div className="courses-results-grid">
+              {[1, 2, 3, 4, 5, 6].map((item) => <Skeleton key={item} />)}
             </div>
           )}
 
-          {/* Empty state */}
           {!loading && !error && filtered.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '64px 24px', background: '#F9FAFB', borderRadius: '12px', border: '2px dashed #E5E7EB' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔎</div>
-              <h2 style={{ fontWeight: 700, fontSize: '20px', marginBottom: '8px' }}>Không tìm thấy khóa học</h2>
-              <p style={{ color: '#6B7280', marginBottom: '20px' }}>Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
-              <button onClick={clearFilters} style={{
-                background: '#0056D2', color: '#fff', border: 'none',
-                padding: '10px 24px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer',
-              }}>Xóa bộ lọc</button>
+            <div className="message-box">
+              <h2 style={{ marginBottom: 8 }}>Không tìm thấy khóa học</h2>
+              <p style={{ color: '#636363', marginBottom: 18 }}>
+                Thử thay đổi từ khóa hoặc bỏ bớt bộ lọc.
+              </p>
+              <button className="btn btn-primary" type="button" onClick={clearFilters}>Xóa bộ lọc</button>
             </div>
           )}
 
-          {/* Grid */}
           {!loading && filtered.length > 0 && (
             <>
-              <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '16px' }}>
-                Hiển thị <strong>{Math.min(filtered.length, (currentPage - 1) * ITEMS_PER_PAGE + 1)}-{Math.min(filtered.length, currentPage * ITEMS_PER_PAGE)}</strong> trong số <strong>{filtered.length}</strong> khóa học
+              <p className="results-count">
+                Hiển thị <strong>{Math.min(filtered.length, (currentPage - 1) * ITEMS_PER_PAGE + 1)}-{Math.min(filtered.length, currentPage * ITEMS_PER_PAGE)}</strong> trong <strong>{filtered.length}</strong> khóa học
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '32px' }}>
-                {paginatedCourses.map(course => <CourseCard key={course.id} course={course} />)}
+              <div className="courses-results-grid">
+                {paginatedCourses.map((course) => <CourseCard key={course.id} course={course} />)}
               </div>
 
-              {/* Pagination controls */}
               {totalPages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '20px' }}>
+                <div className="pagination">
                   <button
+                    className="page-button"
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    style={{
-                      padding: '8px 16px',
-                      border: '1px solid #D1D5DB',
-                      background: currentPage === 1 ? '#F3F4F6' : '#fff',
-                      color: currentPage === 1 ? '#9CA3AF' : '#374151',
-                      borderRadius: '6px',
-                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      transition: 'all 0.2s',
-                    }}
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                   >
-                    ◀ Trang trước
+                    Trước
                   </button>
-                  
-                  {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(page => (
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
                     <button
                       key={page}
+                      className={`page-button${page === currentPage ? ' is-active' : ''}`}
                       onClick={() => setCurrentPage(page)}
-                      style={{
-                        width: '38px',
-                        height: '38px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: page === currentPage ? 'none' : '1px solid #D1D5DB',
-                        background: page === currentPage ? '#0056D2' : '#fff',
-                        color: page === currentPage ? '#fff' : '#374151',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        transition: 'all 0.2s',
-                      }}
                     >
                       {page}
                     </button>
                   ))}
-
                   <button
+                    className="page-button"
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    style={{
-                      padding: '8px 16px',
-                      border: '1px solid #D1D5DB',
-                      background: currentPage === totalPages ? '#F3F4F6' : '#fff',
-                      color: currentPage === totalPages ? '#9CA3AF' : '#374151',
-                      borderRadius: '6px',
-                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      transition: 'all 0.2s',
-                    }}
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                   >
-                    Trang sau ▶
+                    Sau
                   </button>
                 </div>
               )}
             </>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

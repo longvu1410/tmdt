@@ -16,6 +16,7 @@ public class TeacherQuarterRevenueResponse {
     private Instant periodStart;
     private Instant periodEnd;
     private Long paidOrderCount;
+    private Long coursesSoldCount;
     private BigDecimal grossRevenue;
     private BigDecimal pendingWithdrawalAmount;
     private BigDecimal approvedWithdrawalAmount;

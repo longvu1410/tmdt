@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -19,12 +18,14 @@ import EditCourse from './pages/EditCourse';
 import CoursesPage from './pages/CoursesPage';
 import MyComplaints from './pages/MyComplaints';
 import ChatPage from './pages/ChatPage';
+import Profile from './pages/Profile';
+import ResetPassword from './pages/ResetPassword';
 
 
 function App() {
   return (
     <Router>
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+      <div className="app-shell">
         <Navbar />
         <Routes>
           {/* Full-width routes (no padding container) */}
@@ -32,7 +33,7 @@ function App() {
 
           {/* Padded/centered routes */}
           <Route path="/*" element={
-            <main style={{ flex: 1, maxWidth: '1340px', width: '100%', margin: '0 auto', padding: '32px 16px' }}>
+            <main className="app-main">
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/courses" element={<CoursesPage />} />
@@ -51,6 +52,8 @@ function App() {
                 <Route path="/revenue" element={<TeacherRevenue />} />
                 <Route path="/teacher/courses" element={<TeacherCourses />} />
                 <Route path="/teacher/edit-course/:id" element={<EditCourse />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
               </Routes>
             </main>
           } />
