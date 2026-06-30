@@ -21,4 +21,7 @@ public class VoucherResponse {
     private Boolean active;
     private Instant startsAt;
     private Instant expiresAt;
+    private Long teacherId;
+    private String teacherName;
+    private java.util.List<Long> applicableCourseIds;
 }

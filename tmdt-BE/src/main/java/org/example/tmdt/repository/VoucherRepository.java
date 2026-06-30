@@ -12,4 +12,8 @@ public interface VoucherRepository extends JpaRepository<Voucher, Long> {
     Optional<Voucher> findByCode(String code);
 
     List<Voucher> findAllByOrderByCreatedAtDesc();
+
+    List<Voucher> findByTeacher_IdOrderByCreatedAtDesc(Long teacherId);
+
+    Optional<Voucher> findByCodeAndActiveTrue(String code);
 }

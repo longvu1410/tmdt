@@ -311,6 +311,7 @@ public class CourseService {
 
         if (review == null) {
             review = CourseReview.builder()
+                    .course(course)
                     .studentId(student.getId())
                     .studentName(resolveStudentName(student))
                     .createdAt(Instant.now())
@@ -330,12 +331,22 @@ public class CourseService {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new NotFoundException("Course not found"));
         return course.getReviews().stream()
+                .filter(review -> !Boolean.TRUE.equals(review.getIsHidden()) && !Boolean.TRUE.equals(review.getIsDeleted()))
                 .map(review -> CourseReviewResponse.builder()
+                        .id(review.getId())
                         .studentName(review.getStudentName())
                         .studentId(review.getStudentId())
                         .rating(review.getRating())
                         .comment(review.getComment())
                         .createdAt(review.getCreatedAt())
+                        .courseId(review.getCourse().getId())
+                        .courseTitle(review.getCourse().getTitle())
+                        .isHidden(review.getIsHidden())
+                        .isPinned(review.getIsPinned())
+                        .isReported(review.getIsReported())
+                        .reportReason(review.getReportReason())
+                        .isDeleted(review.getIsDeleted())
+                        .replyComment(review.getReplyComment())
                         .build())
                 .toList();
     }
@@ -347,6 +358,8 @@ public class CourseService {
         course.setDescription(request.getDescription().trim());
         course.setPrice(request.getPrice());
         course.setDiscountPrice(request.getDiscountPrice());
+        course.setDiscountStartAt(request.getDiscountStartAt());
+        course.setDiscountEndAt(request.getDiscountEndAt());
         course.setThumbnailUrl(trimToNull(request.getThumbnailUrl()));
 
         course.setInstructorName(request.getInstructorName().trim());
@@ -370,13 +383,16 @@ public class CourseService {
                         .videoUrl(trimToNull(section.getVideoUrl()))
                         .build())
                 .toList());
-        course.setReviews(request.getReviews().stream()
-                .map(review -> CourseReview.builder()
-                        .studentName(review.getStudentName().trim())
-                        .rating(review.getRating())
-                        .comment(review.getComment().trim())
-                        .build())
-                .toList());
+        if (course.getId() == null) {
+            course.setReviews(request.getReviews().stream()
+                    .map(review -> CourseReview.builder()
+                            .course(course)
+                            .studentName(review.getStudentName().trim())
+                            .rating(review.getRating())
+                            .comment(review.getComment().trim())
+                            .build())
+                    .toList());
+        }
         course.setActive(request.getActive() == null || request.getActive());
     }
 
@@ -397,6 +413,9 @@ public class CourseService {
                 .description(course.getDescription())
                 .price(course.getPrice())
                 .discountPrice(course.getDiscountPrice())
+                .discountStartAt(course.getDiscountStartAt())
+                .discountEndAt(course.getDiscountEndAt())
+                .isDiscountActive(isDiscountActive(course))
                 .thumbnailUrl(course.getThumbnailUrl())
 
                 .instructorName(course.getInstructorName())
@@ -429,12 +448,22 @@ public class CourseService {
                                 .build())
                         .toList())
                 .reviews(course.getReviews().stream()
+                        .filter(review -> !Boolean.TRUE.equals(review.getIsHidden()) && !Boolean.TRUE.equals(review.getIsDeleted()))
                         .map(review -> CourseReviewResponse.builder()
+                                .id(review.getId())
                                 .studentName(review.getStudentName())
                                 .studentId(review.getStudentId())
                                 .rating(review.getRating())
                                 .comment(review.getComment())
                                 .createdAt(review.getCreatedAt())
+                                .courseId(review.getCourse().getId())
+                                .courseTitle(review.getCourse().getTitle())
+                                .isHidden(review.getIsHidden())
+                                .isPinned(review.getIsPinned())
+                                .isReported(review.getIsReported())
+                                .reportReason(review.getReportReason())
+                                .isDeleted(review.getIsDeleted())
+                                .replyComment(review.getReplyComment())
                                 .build())
                         .toList())
                 .build();
@@ -546,5 +575,19 @@ public class CourseService {
                 .average()
                 .orElse(0);
         course.setRating(BigDecimal.valueOf(average).setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private boolean isDiscountActive(Course course) {
+        if (course.getDiscountPrice() == null) {
+            return false;
+        }
+        Instant now = Instant.now();
+        if (course.getDiscountStartAt() != null && now.isBefore(course.getDiscountStartAt())) {
+            return false;
+        }
+        if (course.getDiscountEndAt() != null && now.isAfter(course.getDiscountEndAt())) {
+            return false;
+        }
+        return true;
     }
 }

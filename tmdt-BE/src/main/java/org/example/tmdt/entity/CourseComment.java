@@ -2,16 +2,18 @@ package org.example.tmdt.entity;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.*;
 
 @Entity
-@Table(name = "course_reviews")
+@Table(name = "course_comments")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CourseReview {
+public class CourseComment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,20 +23,21 @@ public class CourseReview {
     @JoinColumn(name = "course_id", nullable = false)
     private Course course;
 
-    @Column(name = "student_id")
-    private Long studentId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private AppUser user;
 
-    @Column(nullable = false, length = 100)
-    private String studentName;
+    @Column(nullable = false, length = 1000)
+    private String content;
 
-    @Column(nullable = false)
-    private Integer rating;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private CourseComment parent;
 
-    @Column(nullable = false, length = 700)
-    private String comment;
-
-    @Column(name = "sort_order")
-    private Integer sortOrder;
+    @Builder.Default
+    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt ASC")
+    private List<CourseComment> replies = new ArrayList<>();
 
     @Builder.Default
     @Column(nullable = false)
@@ -55,19 +58,25 @@ public class CourseReview {
     @Column(nullable = false)
     private Boolean isDeleted = false;
 
-    @Column(length = 1000)
-    private String replyComment;
-
+    @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
 
     @PrePersist
     void onCreate() {
-        if (this.createdAt == null) {
-            this.createdAt = Instant.now();
-        }
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
         if (this.isHidden == null) this.isHidden = false;
         if (this.isPinned == null) this.isPinned = false;
         if (this.isReported == null) this.isReported = false;
         if (this.isDeleted == null) this.isDeleted = false;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
     }
 }

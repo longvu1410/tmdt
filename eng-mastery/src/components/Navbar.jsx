@@ -225,7 +225,7 @@ const Navbar = () => {
                   </div>
 
                   <Link className="dropdown-link" to="/profile" onClick={() => setDropdownOpen(false)}>
-                    👤 Thông tin tài khoản
+                    Thông tin tài khoản
                   </Link>
 
                   {!user.roles?.includes('ROLE_TEACHER') && (
@@ -237,6 +237,12 @@ const Navbar = () => {
                     <>
                       <Link className="dropdown-link" to="/teacher/courses" onClick={() => setDropdownOpen(false)}>
                         Khóa học giảng dạy
+                      </Link>
+                      <Link className="dropdown-link" to="/teacher/comments" onClick={() => setDropdownOpen(false)}>
+                        Quản lý bình luận
+                      </Link>
+                      <Link className="dropdown-link" to="/teacher/vouchers" onClick={() => setDropdownOpen(false)}>
+                        Mã giảm giá (Voucher)
                       </Link>
                       <Link className="dropdown-link" to="/revenue" onClick={() => setDropdownOpen(false)}>
                         Doanh thu

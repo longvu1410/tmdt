@@ -42,8 +42,8 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderPriceResponse preview(CheckoutRequest request) {
         Course course = getPurchasableCourse(request.getCourseId());
-        BigDecimal basePrice = course.getDiscountPrice() != null ? course.getDiscountPrice() : course.getPrice();
-        Voucher voucher = resolveVoucher(request.getVoucherCode(), basePrice);
+        BigDecimal basePrice = isDiscountActive(course) ? course.getDiscountPrice() : course.getPrice();
+        Voucher voucher = resolveVoucher(request.getVoucherCode(), course, basePrice);
         BigDecimal voucherDiscount = calculateDiscount(basePrice, voucher);
         BigDecimal totalAmount = basePrice.subtract(voucherDiscount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         BigDecimal totalDiscount = course.getPrice().subtract(totalAmount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
@@ -97,8 +97,8 @@ public class OrderService {
 
         AppUser student = appUserRepository.findById(principal.getId())
                 .orElseThrow(() -> new BadRequestException("Student account not found"));
-        BigDecimal basePrice = course.getDiscountPrice() != null ? course.getDiscountPrice() : course.getPrice();
-        Voucher voucher = resolveVoucher(request.getVoucherCode(), basePrice);
+        BigDecimal basePrice = isDiscountActive(course) ? course.getDiscountPrice() : course.getPrice();
+        Voucher voucher = resolveVoucher(request.getVoucherCode(), course, basePrice);
         BigDecimal voucherDiscount = calculateDiscount(basePrice, voucher);
         BigDecimal totalAmount = basePrice.subtract(voucherDiscount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         BigDecimal totalDiscount = course.getPrice().subtract(totalAmount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
@@ -138,7 +138,7 @@ public class OrderService {
             throw new BadRequestException("Course already purchased");
         }
 
-        Voucher voucher = order.getVoucherCode() == null ? null : resolveVoucher(order.getVoucherCode(), order.getOriginalAmount());
+        Voucher voucher = order.getVoucherCode() == null ? null : resolveVoucher(order.getVoucherCode(), order.getCourse(), order.getOriginalAmount());
         order.setPaymentReference(normalizePaymentReference(request));
         order.setStatus(OrderStatus.PAID);
         order.setPaidAt(Instant.now());
@@ -187,18 +187,18 @@ public class OrderService {
         return course;
     }
 
-    private Voucher resolveVoucher(String rawCode, BigDecimal orderAmount) {
+    private Voucher resolveVoucher(String rawCode, Course course, BigDecimal orderAmount) {
         if (rawCode == null || rawCode.isBlank()) {
             return null;
         }
         String code = rawCode.trim().toUpperCase();
         Voucher voucher = voucherRepository.findByCode(code)
                 .orElseThrow(() -> new BadRequestException("Voucher not found"));
-        validateVoucher(voucher, orderAmount);
+        validateVoucher(voucher, course, orderAmount);
         return voucher;
     }
 
-    private void validateVoucher(Voucher voucher, BigDecimal orderAmount) {
+    private void validateVoucher(Voucher voucher, Course course, BigDecimal orderAmount) {
         Instant now = Instant.now();
         if (!Boolean.TRUE.equals(voucher.getActive())) {
             throw new BadRequestException("Voucher is inactive");
@@ -215,6 +215,31 @@ public class OrderService {
         if (orderAmount.compareTo(voucher.getMinOrderAmount()) < 0) {
             throw new BadRequestException("Order amount does not meet voucher minimum");
         }
+        if (voucher.getTeacher() != null) {
+            if (course.getTeacher() == null || !voucher.getTeacher().getId().equals(course.getTeacher().getId())) {
+                throw new BadRequestException("This voucher is only applicable to courses by teacher " + 
+                        (voucher.getTeacher().getDisplayName() != null ? voucher.getTeacher().getDisplayName() : voucher.getTeacher().getUsername()));
+            }
+            if (voucher.getApplicableCourseIds() != null && !voucher.getApplicableCourseIds().isEmpty()) {
+                if (!voucher.getApplicableCourseIds().contains(course.getId())) {
+                    throw new BadRequestException("This voucher is not applicable to this course");
+                }
+            }
+        }
+    }
+
+    private boolean isDiscountActive(Course course) {
+        if (course.getDiscountPrice() == null) {
+            return false;
+        }
+        Instant now = Instant.now();
+        if (course.getDiscountStartAt() != null && now.isBefore(course.getDiscountStartAt())) {
+            return false;
+        }
+        if (course.getDiscountEndAt() != null && now.isAfter(course.getDiscountEndAt())) {
+            return false;
+        }
+        return true;
     }
 
     private BigDecimal calculateDiscount(BigDecimal orderAmount, Voucher voucher) {

@@ -48,7 +48,7 @@ const levelLabel = {
 };
 
 const getEffectivePrice = (course) => (
-  course.discountPrice !== null && course.discountPrice !== undefined
+  course.isDiscountActive && course.discountPrice !== null && course.discountPrice !== undefined
     ? course.discountPrice
     : course.price ?? 0
 );
@@ -126,7 +126,7 @@ const CourseCard = ({ course }) => {
         </div>
 
         <div className="course-card__price">
-          {discountPrice !== null && discountPrice !== undefined && discountPrice >= 0 ? (
+          {course.isDiscountActive && discountPrice !== null && discountPrice !== undefined && discountPrice >= 0 ? (
             <>
               {formatPrice(discountPrice)}
               <span className="price-old">{formatPrice(price)}</span>

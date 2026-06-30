@@ -86,7 +86,7 @@ const CourseCard = ({ course }) => {
           </div>
         )}
         <div className="course-card__price">
-          {discountPrice !== null && discountPrice !== undefined && discountPrice >= 0 ? (
+          {course.isDiscountActive && discountPrice !== null && discountPrice !== undefined && discountPrice >= 0 ? (
             <>
               {formatPrice(discountPrice)}
               <span className="price-old">{formatPrice(price)}</span>

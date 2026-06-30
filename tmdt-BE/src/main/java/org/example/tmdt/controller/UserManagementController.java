@@ -39,4 +39,11 @@ public class UserManagementController {
             @AuthenticationPrincipal UserPrincipal adminPrincipal) {
         return userManagementService.updateUserRole(id, request.getRole(), adminPrincipal);
     }
+
+    @PutMapping("/{id}/warn")
+    public UserManagementResponse warnUser(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal adminPrincipal) {
+        return userManagementService.warnUser(id, adminPrincipal);
+    }
 }

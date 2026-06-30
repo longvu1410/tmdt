@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -75,6 +76,12 @@ public class CourseRequest {
     /** Giá sau giảm, null = không khuyến mãi */
     @DecimalMin("0.00")
     private BigDecimal discountPrice;
+
+    /** Thời điểm bắt đầu giảm giá (null = ngay lập tức) */
+    private Instant discountStartAt;
+
+    /** Thời điểm kết thúc giảm giá (null = vô thời hạn) */
+    private Instant discountEndAt;
 
     @Size(max = 20)
     private List<@NotBlank @Size(max = 250) String> outcomes = new ArrayList<>();

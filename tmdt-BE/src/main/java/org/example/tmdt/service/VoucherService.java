@@ -11,6 +11,9 @@ import org.example.tmdt.enums.VoucherDiscountType;
 import org.example.tmdt.exception.BadRequestException;
 import org.example.tmdt.exception.NotFoundException;
 import org.example.tmdt.repository.VoucherRepository;
+import org.example.tmdt.entity.AppUser;
+import org.example.tmdt.repository.AppUserRepository;
+import org.example.tmdt.security.UserPrincipal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class VoucherService {
 
     private final VoucherRepository voucherRepository;
+    private final AppUserRepository appUserRepository;
 
     @Transactional(readOnly = true)
     public List<VoucherResponse> getVouchers() {
@@ -59,6 +63,54 @@ public class VoucherService {
         return toResponse(voucher);
     }
 
+    @Transactional(readOnly = true)
+    public List<VoucherResponse> getTeacherVouchers(UserPrincipal principal) {
+        return voucherRepository.findByTeacher_IdOrderByCreatedAtDesc(principal.getId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public VoucherResponse createTeacherVoucher(VoucherRequest request, UserPrincipal principal) {
+        String code = normalizeCode(request.getCode());
+        if (voucherRepository.existsByCode(code)) {
+            throw new BadRequestException("Voucher code already exists");
+        }
+        AppUser teacher = appUserRepository.findById(principal.getId())
+                .orElseThrow(() -> new BadRequestException("Teacher account not found"));
+        Voucher voucher = Voucher.builder().build();
+        applyRequest(voucher, request, code);
+        voucher.setTeacher(teacher);
+        return toResponse(voucherRepository.save(voucher));
+    }
+
+    @Transactional
+    public VoucherResponse updateTeacherVoucher(Long id, VoucherRequest request, UserPrincipal principal) {
+        Voucher voucher = voucherRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Voucher not found"));
+        if (voucher.getTeacher() == null || !voucher.getTeacher().getId().equals(principal.getId())) {
+            throw new BadRequestException("You do not have permission to edit this voucher");
+        }
+        String code = normalizeCode(request.getCode());
+        if (!voucher.getCode().equals(code) && voucherRepository.existsByCode(code)) {
+            throw new BadRequestException("Voucher code already exists");
+        }
+        applyRequest(voucher, request, code);
+        return toResponse(voucher);
+    }
+
+    @Transactional
+    public VoucherResponse deactivateTeacherVoucher(Long id, UserPrincipal principal) {
+        Voucher voucher = voucherRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Voucher not found"));
+        if (voucher.getTeacher() == null || !voucher.getTeacher().getId().equals(principal.getId())) {
+            throw new BadRequestException("You do not have permission to deactivate this voucher");
+        }
+        voucher.setActive(false);
+        return toResponse(voucher);
+    }
+
     private void applyRequest(Voucher voucher, VoucherRequest request, String code) {
         VoucherDiscountType discountType = parseDiscountType(request.getDiscountType());
         if (discountType == VoucherDiscountType.PERCENT
@@ -80,6 +132,7 @@ public class VoucherService {
         voucher.setActive(request.getActive() == null || request.getActive());
         voucher.setStartsAt(request.getStartsAt());
         voucher.setExpiresAt(request.getExpiresAt());
+        voucher.setApplicableCourseIds(request.getApplicableCourseIds());
         if (voucher.getUsedCount() == null) {
             voucher.setUsedCount(0);
         }
@@ -111,6 +164,9 @@ public class VoucherService {
                 .active(voucher.getActive())
                 .startsAt(voucher.getStartsAt())
                 .expiresAt(voucher.getExpiresAt())
+                .teacherId(voucher.getTeacher() != null ? voucher.getTeacher().getId() : null)
+                .teacherName(voucher.getTeacher() != null ? (voucher.getTeacher().getDisplayName() != null ? voucher.getTeacher().getDisplayName() : voucher.getTeacher().getUsername()) : "Admin")
+                .applicableCourseIds(voucher.getApplicableCourseIds())
                 .build();
     }
 }

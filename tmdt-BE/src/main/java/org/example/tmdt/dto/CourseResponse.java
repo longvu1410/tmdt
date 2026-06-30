@@ -1,6 +1,7 @@
 package org.example.tmdt.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,6 +16,9 @@ public class CourseResponse {
     private String description;
     private BigDecimal price;
     private BigDecimal discountPrice;
+    private Instant discountStartAt;
+    private Instant discountEndAt;
+    private Boolean isDiscountActive;
 
     private String thumbnailUrl;
     private String instructorName;

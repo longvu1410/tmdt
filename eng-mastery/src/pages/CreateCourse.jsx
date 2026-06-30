@@ -199,6 +199,7 @@ const CreateCourse = () => {
 
   const [form, setForm] = useState({
     slug: '', title: '', description: '', price: '', discountPrice: '',
+    discountStartAt: '', discountEndAt: '',
     thumbnailUrl: '', instructorName: currentUser?.displayName || currentUser?.username || '',
     language: 'Vietnamese', level: 'BEGINNER',
     studentCount: 0, lessonCount: 1, totalDuration: '', rating: 5, ratingCount: 0,
@@ -262,6 +263,8 @@ const CreateCourse = () => {
         ...form,
         price: originalPrice,
         discountPrice: promoPrice,
+        discountStartAt: form.discountStartAt ? new Date(form.discountStartAt).toISOString() : null,
+        discountEndAt: form.discountEndAt ? new Date(form.discountEndAt).toISOString() : null,
         lessonCount: parseInt(form.lessonCount) || 1,
         studentCount: parseInt(form.studentCount) || 0,
         ratingCount: parseInt(form.ratingCount) || 0,
@@ -546,6 +549,14 @@ const CreateCourse = () => {
                     🏷️ Tiết kiệm: {Math.round((1 - parseFloat(form.discountPrice) / parseFloat(form.price)) * 100)}%
                   </div>
                 )}
+              </Field>
+              <Field label="Bắt đầu giảm giá" hint="Để trống nếu muốn áp dụng ngay">
+                <input style={inputStyle} type="datetime-local" value={form.discountStartAt}
+                  onChange={e => setField('discountStartAt', e.target.value)} />
+              </Field>
+              <Field label="Kết thúc giảm giá" hint="Để trống nếu muốn giảm giá vĩnh viễn">
+                <input style={inputStyle} type="datetime-local" value={form.discountEndAt}
+                  onChange={e => setField('discountEndAt', e.target.value)} />
               </Field>
               <Field label="Số bài học">
                 <input style={inputStyle} type="number" min={1} value={form.lessonCount}

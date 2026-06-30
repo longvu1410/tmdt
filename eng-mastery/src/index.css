@@ -779,3 +779,48 @@ input, textarea { font-family: var(--font); }
     position: static;
   }
 }
+
+/* Footer styles */
+.app-footer {
+  background: #111827;
+  color: #fff;
+}
+
+.app-footer__inner {
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 48px 24px 32px;
+}
+
+.app-footer__grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 40px;
+}
+
+.app-footer__bottom {
+  border-top: 1px solid #374151;
+  padding-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-footer__bottom-links {
+  display: flex;
+  gap: 20px;
+}
+
+@media (max-width: 820px) {
+  .app-footer__grid {
+    grid-template-columns: 1fr !important;
+    gap: 30px !important;
+  }
+  .app-footer__bottom {
+    flex-direction: column !important;
+    gap: 16px !important;
+    text-align: center !important;
+  }
+}
+

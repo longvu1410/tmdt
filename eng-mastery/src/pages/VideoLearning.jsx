@@ -235,6 +235,35 @@ const VideoLearning = () => {
   const [qaQuestion, setQaQuestion] = useState('');
   const [qaSubmitted, setQaSubmitted] = useState(false);
 
+  // Comments state
+  const [comments, setComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null); // { id, displayName }
+  const [reportCommentId, setReportCommentId] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+  const [commentError, setCommentError] = useState('');
+
+  const fetchComments = useCallback(async () => {
+    try {
+      setLoadingComments(true);
+      setCommentError('');
+      const res = await apiFetch(`/api/courses/${courseId}/comments`);
+      if (!res.ok) throw new Error('Không thể tải danh sách bình luận');
+      const data = await res.json();
+      setComments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setCommentError(err.message || 'Lỗi tải bình luận');
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [courseId]);
+
+  useEffect(() => {
+    if (activeTab === 'qa') {
+      fetchComments();
+    }
+  }, [activeTab, fetchComments]);
+
   const videoRef = useRef(null);
 
   /* fetch course learning content */
@@ -294,11 +323,53 @@ const VideoLearning = () => {
     saveNote(courseId, activeIdx, e.target.value);
   };
 
-  const handleQaSubmit = () => {
+  const handleQaSubmit = async () => {
     if (!qaQuestion.trim()) return;
-    setQaSubmitted(true);
-    setQaQuestion('');
-    setTimeout(() => setQaSubmitted(false), 4000);
+    setCommentError('');
+    try {
+      const body = {
+        content: qaQuestion.trim(),
+        parentId: replyingTo ? replyingTo.id : null
+      };
+      const res = await apiFetch(`/api/courses/${courseId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Không thể đăng bình luận');
+      }
+
+      setQaQuestion('');
+      setReplyingTo(null);
+      setQaSubmitted(true);
+      setTimeout(() => setQaSubmitted(false), 3000);
+      fetchComments();
+    } catch (err) {
+      setCommentError(err.message);
+    }
+  };
+
+  const handleReportSubmit = async (e) => {
+    e.preventDefault();
+    if (!reportReason.trim() || !reportCommentId) return;
+    setCommentError('');
+    try {
+      const res = await apiFetch(`/api/comments/${reportCommentId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reportReason.trim() }),
+      });
+      if (!res.ok) throw new Error('Không thể gửi báo cáo vi phạm');
+      setReportCommentId(null);
+      setReportReason('');
+      alert('Đã gửi báo cáo vi phạm bình luận thành công!');
+      fetchComments();
+    } catch (err) {
+      setCommentError(err.message);
+    }
   };
 
   if (loading) return <LoadingScreen />;
@@ -460,21 +531,209 @@ const VideoLearning = () => {
                     padding: '12px 16px', marginBottom: '16px', color: '#15803D', fontSize: '14px',
                     display: 'flex', alignItems: 'center', gap: '8px',
                   }}>
-                    ✅ Câu hỏi đã được gửi! Giảng viên sẽ phản hồi sớm.
+                    ✅ Bình luận của bạn đã được đăng thành công!
                   </div>
                 )}
-                <input
-                  className="vl-qa-input"
-                  type="text"
-                  placeholder="Đặt câu hỏi cho giảng viên về chương này..."
-                  value={qaQuestion}
-                  onChange={e => setQaQuestion(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleQaSubmit()}
-                />
-                <button className="vl-btn-primary" onClick={handleQaSubmit}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                  Gửi câu hỏi
-                </button>
+
+                {commentError && (
+                  <div style={{
+                    background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px',
+                    padding: '12px 16px', marginBottom: '16px', color: '#DC2626', fontSize: '14px',
+                  }}>
+                    ⚠️ {commentError}
+                  </div>
+                )}
+
+                {/* Reply Indicator */}
+                {replyingTo && (
+                  <div style={{
+                    background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px',
+                    padding: '10px 14px', marginBottom: '12px', fontSize: '13.5px', color: '#1E40AF',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}>
+                    <span>Đang phản hồi bình luận của <strong>{replyingTo.displayName}</strong></span>
+                    <button
+                      onClick={() => setReplyingTo(null)}
+                      style={{ background: 'none', border: 'none', color: '#EF4444', fontWeight: 600, cursor: 'pointer', fontSize: '12px' }}
+                    >Hủy bỏ</button>
+                  </div>
+                )}
+
+                {/* Comment Input Form */}
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '50%', background: '#3B82F6',
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContext: 'center',
+                    fontWeight: 700, fontSize: '14px', flexShrink: 0, justifyContent: 'center',
+                  }}>
+                    {(() => {
+                      try {
+                        const user = JSON.parse(localStorage.getItem('user'));
+                        return (user?.displayName || user?.username || 'U')[0].toUpperCase();
+                      } catch { return 'U'; }
+                    })()}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      className="vl-qa-input"
+                      type="text"
+                      placeholder={replyingTo ? `Viết câu trả lời...` : "Đặt câu hỏi hoặc chia sẻ ý kiến của bạn về bài học này..."}
+                      value={qaQuestion}
+                      onChange={e => setQaQuestion(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleQaSubmit()}
+                      style={{ marginBottom: '8px' }}
+                    />
+                    <button className="vl-btn-primary" onClick={handleQaSubmit} style={{ padding: '8px 18px', fontSize: '13px' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '4px' }}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                      {replyingTo ? 'Trả lời' : 'Đăng bình luận'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Comments List */}
+                {loadingComments && comments.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px 0', color: '#9CA3AF' }}>
+                    <div style={{ width: '24px', height: '24px', border: '2.5px solid #E5E7EB', borderTopColor: '#2563EB', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
+                    Đang tải thảo luận...
+                  </div>
+                ) : comments.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9CA3AF', border: '1px dashed #E5E7EB', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
+                    <p style={{ margin: '0 0 4px', fontWeight: 600, color: '#4B5563' }}>Chưa có thảo luận nào</p>
+                    <p style={{ fontSize: '12.5px', margin: 0 }}>Hãy là người đầu tiên đặt câu hỏi cho chương này!</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {comments.map((comment) => {
+                      const renderCommentNode = (c, isReply = false) => {
+                        const avatarLetter = (c.userDisplayName || c.username || 'U')[0].toUpperCase();
+                        const isTeacher = c.userRole === 'TEACHER';
+                        const isAdmin = c.userRole === 'ADMIN';
+
+                        return (
+                          <div key={c.id} style={{ display: 'flex', gap: '12px', marginTop: isReply ? '14px' : 0 }}>
+                            {/* Avatar */}
+                            <div style={{
+                              width: isReply ? '30px' : '38px',
+                              height: isReply ? '30px' : '38px',
+                              borderRadius: '50%',
+                              background: isTeacher ? 'linear-gradient(135deg, #10B981, #059669)' : isAdmin ? 'linear-gradient(135deg, #EF4444, #DC2626)' : '#6B7280',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: isReply ? '12px' : '14px',
+                              flexShrink: 0,
+                            }}>{avatarLetter}</div>
+
+                            {/* Comment Body */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '12px 16px' }}>
+                                {/* Header */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '6px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <strong style={{ color: '#111827', fontSize: '13.5px' }}>{c.userDisplayName}</strong>
+                                    {isTeacher && (
+                                      <span style={{ background: '#D1FAE5', color: '#065F46', padding: '1px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>Giảng viên</span>
+                                    )}
+                                    {isAdmin && (
+                                      <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '1px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>Quản trị viên</span>
+                                    )}
+                                    {c.isPinned && (
+                                      <span style={{ background: '#FEF3C7', color: '#92400E', padding: '1px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>📌 Đã ghim</span>
+                                    )}
+                                  </div>
+                                  <span style={{ color: '#9CA3AF', fontSize: '11px' }}>
+                                    {new Date(c.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                                  </span>
+                                </div>
+                                {/* Content */}
+                                <p style={{ color: '#374151', fontSize: '13.5px', margin: 0, lineHeight: 1.6, wordBreak: 'break-word' }}>{c.content}</p>
+                              </div>
+
+                              {/* Footer Actions */}
+                              <div style={{ display: 'flex', gap: '16px', marginTop: '6px', paddingLeft: '8px' }}>
+                                <button
+                                  onClick={() => setReplyingTo({ id: c.id, displayName: c.userDisplayName })}
+                                  style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                                >💬 Trả lời</button>
+                                <button
+                                  onClick={() => setReportCommentId(c.id)}
+                                  style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: '12px', cursor: 'pointer', padding: 0 }}
+                                  onMouseEnter={e => e.currentTarget.style.color = '#DC2626'}
+                                  onMouseLeave={e => e.currentTarget.style.color = '#9CA3AF'}
+                                >⚠️ Báo cáo vi phạm</button>
+                              </div>
+
+                              {/* Nested replies */}
+                              {c.replies && c.replies.length > 0 && (
+                                <div style={{ borderLeft: '2px solid #E5E7EB', paddingLeft: '14px', marginTop: '10px' }}>
+                                  {c.replies.map(reply => renderCommentNode(reply, true))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      };
+
+                      return renderCommentNode(comment);
+                    })}
+                  </div>
+                )}
+
+                {/* Report Reason Modal */}
+                {reportCommentId && (
+                  <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+                    zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '24px', backdropFilter: 'blur(3px)',
+                  }}>
+                    <div style={{
+                      background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '440px',
+                      boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', border: '1px solid #E5E7EB',
+                      overflow: 'hidden', padding: '24px'
+                    }}>
+                      <h3 style={{ margin: '0 0 12px', fontSize: '17px', fontWeight: 700, color: '#111827' }}>⚠️ Báo cáo bình luận vi phạm</h3>
+                      <p style={{ color: '#6B7280', fontSize: '13px', margin: '0 0 16px', lineHeight: 1.5 }}>
+                        Báo cáo này sẽ được gửi trực tiếp đến hệ thống quản trị viên và giảng viên để xử lý. Vui lòng cho biết lý do vi phạm:
+                      </p>
+                      <form onSubmit={handleReportSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <textarea
+                          required
+                          rows={3}
+                          placeholder="Lý do (ví dụ: ngôn từ xúc phạm, nội dung rác, thông tin sai lệch...)"
+                          value={reportReason}
+                          onChange={e => setReportReason(e.target.value)}
+                          style={{
+                            width: '100%', padding: '10px 12px', borderRadius: '8px',
+                            border: '1.5px solid #D1D5DB', fontSize: '13.5px', outline: 'none',
+                            fontFamily: 'inherit', resize: 'none',
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => { setReportCommentId(null); setReportReason(''); }}
+                            style={{
+                              background: '#F3F4F6', color: '#374151', border: 'none',
+                              padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >Đóng</button>
+                          <button
+                            type="submit"
+                            style={{
+                              background: '#DC2626', color: '#fff', border: 'none',
+                              padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >Gửi báo cáo</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -446,6 +446,11 @@ const AdminDashboard = () => {
   const [courseManagePage, setCourseManagePage] = useState(1);
   const COURSE_PAGE_SIZE = 10;
 
+  // Admin Comment Management States
+  const [adminComments, setAdminComments] = useState([]);
+  const [adminCommentStats, setAdminCommentStats] = useState({ total: 0, reported: 0, deleted: 0 });
+  const [commentLogs, setCommentLogs] = useState([]);
+
 
 
 
@@ -562,6 +567,30 @@ const AdminDashboard = () => {
     } catch (e) { /* silent */ }
   }, []);
 
+  const fetchAdminComments = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/comments');
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setAdminComments(list);
+      setAdminCommentStats({
+        total: list.length,
+        reported: list.filter(c => c.isReported).length,
+        deleted: list.filter(c => c.isDeleted).length
+      });
+    } catch (e) { /* silent */ }
+  }, []);
+
+  const fetchCommentActionLogs = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/comments/action-logs');
+      if (!res.ok) return;
+      const data = await res.json();
+      setCommentLogs(Array.isArray(data) ? data : []);
+    } catch (e) { /* silent */ }
+  }, []);
+
   useEffect(() => {
     fetchPending();
     fetchWithdrawals();
@@ -569,7 +598,9 @@ const AdminDashboard = () => {
     fetchUsers();
     fetchAllCoursesForAdmin();
     fetchRefundRequests();
-  }, [fetchPending, fetchWithdrawals, fetchComplaints, fetchUsers, fetchAllCoursesForAdmin, fetchRefundRequests]);
+    fetchAdminComments();
+    fetchCommentActionLogs();
+  }, [fetchPending, fetchWithdrawals, fetchComplaints, fetchUsers, fetchAllCoursesForAdmin, fetchRefundRequests, fetchAdminComments, fetchCommentActionLogs]);
 
 
 
@@ -633,6 +664,30 @@ const AdminDashboard = () => {
         throw new Error(data.message || 'Cập nhật trạng thái khóa học thất bại');
       }
       showSuccess('✅ Cập nhật trạng thái hoạt động khóa học thành công');
+      fetchAllCoursesForAdmin();
+      fetchPending();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setProcessingCourseToggle(false);
+    }
+  };
+
+  const handleAdminDeleteCourse = async (courseId) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn khóa học #${courseId} không?`)) {
+      return;
+    }
+    setProcessingCourseToggle(true);
+    setError('');
+    try {
+      const res = await apiFetch(`/api/courses/${courseId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Xóa khóa học thất bại: ${res.status} ${text}`);
+      }
+      showSuccess('✅ Đã xóa khóa học thành công');
       fetchAllCoursesForAdmin();
       fetchPending();
     } catch (e) {
@@ -707,6 +762,42 @@ const AdminDashboard = () => {
       setStats(prev => ({ ...prev, pending: prev.pending - 1, rejected: prev.rejected + 1 }));
       setSelectedCourse(null);
       showSuccess(`❌ Đã từ chối khóa học #${courseId}`);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleAdminDeleteComment = async (commentId) => {
+    try {
+      const res = await apiFetch(`/api/admin/comments/${commentId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Không thể xóa bình luận');
+      showSuccess('✅ Đã xóa bình luận thành công');
+      fetchAdminComments();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleAdminRestoreComment = async (commentId) => {
+    try {
+      const res = await apiFetch(`/api/admin/comments/${commentId}/restore`, { method: 'PUT' });
+      if (!res.ok) throw new Error('Không thể khôi phục bình luận');
+      showSuccess('✅ Đã khôi phục bình luận thành công');
+      fetchAdminComments();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleAdminWarnUser = async (userId) => {
+    try {
+      const res = await apiFetch(`/api/admin/users/${userId}/warn`, { method: 'PUT' });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || 'Không thể cảnh cáo người dùng');
+      }
+      showSuccess('⚠️ Đã gửi cảnh cáo người dùng thành công (Cảnh cáo 3 lần sẽ tự động khóa tài khoản)');
+      fetchUsers();
     } catch (e) {
       setError(e.message);
     }
@@ -957,6 +1048,50 @@ const AdminDashboard = () => {
           >
             👤 Quản lý tài khoản
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('COMMENTS');
+              setSearchQuery('');
+              setFilterStatus('ALL');
+              fetchAdminComments();
+            }}
+            style={{
+              padding: '12px 20px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'COMMENTS' ? '3px solid #2563EB' : '3px solid transparent',
+              color: activeTab === 'COMMENTS' ? '#2563EB' : '#6B7280',
+              fontWeight: activeTab === 'COMMENTS' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '15px',
+              transition: 'all 0.2s'
+            }}
+          >
+            💬 Quản lý bình luận {adminCommentStats.reported > 0 && <span style={{ background: '#EF4444', color: '#fff', fontSize: '11px', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>{adminCommentStats.reported}</span>}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('COMMENT_LOGS');
+              setSearchQuery('');
+              setFilterStatus('ALL');
+              fetchCommentActionLogs();
+            }}
+            style={{
+              padding: '12px 20px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'COMMENT_LOGS' ? '3px solid #059669' : '3px solid transparent',
+              color: activeTab === 'COMMENT_LOGS' ? '#059669' : '#6B7280',
+              fontWeight: activeTab === 'COMMENT_LOGS' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '15px',
+              transition: 'all 0.2s'
+            }}
+          >
+            📋 Lịch sử xử lý
+          </button>
         </div>
 
 
@@ -1128,6 +1263,66 @@ const AdminDashboard = () => {
               { label: 'Tổng tài khoản', value: userStats.total, icon: '👥', color: '#7C3AED', bg: '#F5F3FF' },
               { label: 'Đang hoạt động', value: userStats.active, icon: '✅', color: '#059669', bg: '#ECFDF5' },
               { label: 'Bị khóa', value: userStats.blocked, icon: '🚫', color: '#DC2626', bg: '#FEF2F2' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: '#fff', border: '1px solid #E5E7EB',
+                borderRadius: '12px', padding: '20px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ color: '#6B7280', fontSize: '12px', fontWeight: 600, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {s.label}
+                    </p>
+                    <p style={{ color: s.color, fontSize: '32px', fontWeight: 800, margin: 0, lineHeight: 1 }}>
+                      {s.value}
+                    </p>
+                  </div>
+                  <div style={{
+                    width: '44px', height: '44px', background: s.bg, borderRadius: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+                  }}>{s.icon}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'COMMENTS' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            {[
+              { label: 'Tổng bình luận', value: adminCommentStats.total, icon: '💬', color: '#2563EB', bg: '#EFF6FF' },
+              { label: 'Bị báo cáo', value: adminCommentStats.reported, icon: '🚨', color: '#D97706', bg: '#FFFBEB' },
+              { label: 'Bị xóa', value: adminCommentStats.deleted, icon: '🗑️', color: '#DC2626', bg: '#FEF2F2' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: '#fff', border: '1px solid #E5E7EB',
+                borderRadius: '12px', padding: '20px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ color: '#6B7280', fontSize: '12px', fontWeight: 600, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {s.label}
+                    </p>
+                    <p style={{ color: s.color, fontSize: '32px', fontWeight: 800, margin: 0, lineHeight: 1 }}>
+                      {s.value}
+                    </p>
+                  </div>
+                  <div style={{
+                    width: '44px', height: '44px', background: s.bg, borderRadius: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+                  }}>{s.icon}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'COMMENT_LOGS' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            {[
+              { label: 'Tổng số logs ghi nhận', value: commentLogs.length, icon: '📋', color: '#059669', bg: '#ECFDF5' },
             ].map((s, i) => (
               <div key={i} style={{
                 background: '#fff', border: '1px solid #E5E7EB',
@@ -1459,20 +1654,47 @@ const AdminDashboard = () => {
                                 </span>
                               </td>
                               <td style={{ padding: '14px 16px' }}>
-                                <button
-                                  disabled={processingCourseToggle}
-                                  onClick={() => handleToggleCourseActive(c.id)}
-                                  style={{
-                                    background: c.active !== false ? '#FEF2F2' : '#EFF6FF',
-                                    border: '1.5px solid',
-                                    borderColor: c.active !== false ? '#FECACA' : '#BFDBFE',
-                                    color: c.active !== false ? '#DC2626' : '#2563EB',
-                                    padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
-                                    fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {c.active !== false ? '🔒 Ẩn' : '🔓 Hiển thị'}
-                                </button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button
+                                    onClick={() => setSelectedCourse(c)}
+                                    style={{
+                                      background: '#EFF6FF',
+                                      border: '1.5px solid #BFDBFE',
+                                      color: '#2563EB',
+                                      padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                      fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    🔍 Chi tiết
+                                  </button>
+                                  <button
+                                    disabled={processingCourseToggle}
+                                    onClick={() => handleToggleCourseActive(c.id)}
+                                    style={{
+                                      background: c.active !== false ? '#FFFBEB' : '#ECFDF5',
+                                      border: '1.5px solid',
+                                      borderColor: c.active !== false ? '#FDE68A' : '#A7F3D0',
+                                      color: c.active !== false ? '#D97706' : '#059669',
+                                      padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                      fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {c.active !== false ? '🔒 Ẩn' : '🔓 Hiện'}
+                                  </button>
+                                  <button
+                                    disabled={processingCourseToggle}
+                                    onClick={() => handleAdminDeleteCourse(c.id)}
+                                    style={{
+                                      background: '#FEF2F2',
+                                      border: '1.5px solid #FECACA',
+                                      color: '#DC2626',
+                                      padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                      fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    🗑️ Xóa
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1879,6 +2101,7 @@ const AdminDashboard = () => {
                         <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Email</th>
                         <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Vai trò</th>
                         <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Trạng thái</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Số cảnh cáo</th>
                         <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Ngày đăng ký</th>
                         <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Hành động</th>
                       </tr>
@@ -1899,13 +2122,13 @@ const AdminDashboard = () => {
                           <td style={{ padding: '14px 16px', color: '#4B5563' }}>{u.email}</td>
                           <td style={{ padding: '14px 16px' }}>
                             <select
-                              value={u.roles[0] || 'ROLE_STUDENT'}
-                              disabled={processingUser}
-                              onChange={(e) => handleUpdateUserRole(u.id, e.target.value)}
-                              style={{
-                                background: '#FFF', border: '1px solid #D1D5DB', borderRadius: '6px',
-                                padding: '4px 8px', fontSize: '12.5px', outline: 'none', cursor: 'pointer',
-                              }}
+                                value={u.roles[0] || 'ROLE_STUDENT'}
+                                disabled={processingUser}
+                                onChange={(e) => handleUpdateUserRole(u.id, e.target.value)}
+                                style={{
+                                  background: '#FFF', border: '1px solid #D1D5DB', borderRadius: '6px',
+                                  padding: '4px 8px', fontSize: '12.5px', outline: 'none', cursor: 'pointer',
+                                }}
                             >
                               <option value="ROLE_STUDENT">Học viên (Student)</option>
                               <option value="ROLE_TEACHER">Giảng viên (Teacher)</option>
@@ -1921,24 +2144,42 @@ const AdminDashboard = () => {
                               {u.enabled ? '✓ Hoạt động' : '🚫 Đã khóa'}
                             </span>
                           </td>
+                          <td style={{ padding: '14px 16px', fontWeight: 700, color: (u.warningCount || 0) >= 3 ? '#DC2626' : '#374151' }}>
+                            ⚠️ {u.warningCount || 0} / 3
+                          </td>
                           <td style={{ padding: '14px 16px', color: '#6B7280' }}>
                             {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '—'}
                           </td>
                           <td style={{ padding: '14px 16px' }}>
-                            <button
-                              disabled={processingUser}
-                              onClick={() => handleToggleUserStatus(u.id)}
-                              style={{
-                                background: u.enabled ? '#FEF2F2' : '#EFF6FF',
-                                border: '1.5px solid',
-                                borderColor: u.enabled ? '#FECACA' : '#BFDBFE',
-                                color: u.enabled ? '#DC2626' : '#2563EB',
-                                padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
-                                fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {u.enabled ? '🔒 Khóa' : '🔓 Mở khóa'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                disabled={processingUser}
+                                onClick={() => handleToggleUserStatus(u.id)}
+                                style={{
+                                  background: u.enabled ? '#FEF2F2' : '#EFF6FF',
+                                  border: '1.5px solid',
+                                  borderColor: u.enabled ? '#FECACA' : '#BFDBFE',
+                                  color: u.enabled ? '#DC2626' : '#2563EB',
+                                  padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                  fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {u.enabled ? '🔒 Khóa' : '🔓 Mở khóa'}
+                              </button>
+                              <button
+                                disabled={processingUser}
+                                onClick={() => handleAdminWarnUser(u.id)}
+                                style={{
+                                  background: '#FFFBEB',
+                                  border: '1.5px solid #FDE68A',
+                                  color: '#D97706',
+                                  padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
+                                  fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                                }}
+                              >
+                                ⚠️ Cảnh cáo
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1950,6 +2191,163 @@ const AdminDashboard = () => {
                 <span style={{ color: '#9CA3AF', fontSize: '13px' }}>Tổng cộng {users.length} tài khoản</span>
                 <span style={{ color: '#059669', fontSize: '13px', fontWeight: 600 }}>✓ {userStats.active} hoạt động / 🚫 {userStats.blocked} khóa</span>
               </div>
+            </>
+          )}
+
+          {/* ── COMMENTS PANEL ── */}
+          {activeTab === 'COMMENTS' && (
+            <>
+              {adminComments.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>💬</div>
+                  <p style={{ fontSize: '15px' }}>Chưa có bình luận nào trong hệ thống</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
+                    <thead>
+                      <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Khóa học</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Người gửi</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', width: '40%' }}>Nội dung bình luận</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Trạng thái</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Thời gian</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', textAlign: 'right' }}>Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminComments.filter(c => {
+                        const q = searchQuery.toLowerCase();
+                        const matchSearch = !searchQuery || c.content?.toLowerCase().includes(q) || c.userDisplayName?.toLowerCase().includes(q) || c.courseTitle?.toLowerCase().includes(q);
+                        
+                        let matchStatus = true;
+                        if (filterStatus === 'REPORTED') matchStatus = c.isReported === true;
+                        else if (filterStatus === 'DELETED') matchStatus = c.isDeleted === true;
+
+                        return matchSearch && matchStatus;
+                      }).map((c) => (
+                        <tr key={c.id} style={{ borderBottom: '1px solid #F3F4F6', background: c.isReported && !c.isDeleted ? '#FFFDF5' : 'transparent', transition: 'background 0.15s' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: 600, color: '#111827' }}>
+                            {c.courseTitle}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <strong>{c.userDisplayName}</strong>
+                            <div style={{ color: '#6B7280', fontSize: '11px' }}>({c.userRole})</div>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                            {c.parentId && <span style={{ color: '#3B82F6', fontSize: '11.5px', background: '#EFF6FF', padding: '2px 6px', borderRadius: '4px', marginRight: '6px' }}>Reply #{c.parentId}</span>}
+                            {c.content}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                              {c.isDeleted ? (
+                                <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>🗑️ Đã xóa (Admin)</span>
+                              ) : (
+                                <>
+                                  {c.isPinned && <span style={{ background: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>📌 Đã ghim</span>}
+                                  {c.isHidden && <span style={{ background: '#F3F4F6', color: '#4B5563', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>🔒 Đang ẩn (Teacher)</span>}
+                                  {c.isReported && (
+                                    <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', color: '#92400E', maxWidth: '200px' }}>
+                                      <strong>🚨 Báo cáo:</strong> {c.reportReason}
+                                    </div>
+                                  )}
+                                  {!c.isPinned && !c.isHidden && !c.isReported && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>✓ Hoạt động</span>}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: '#6B7280' }}>
+                            {new Date(c.createdAt).toLocaleString('vi-VN')}
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                            {c.isDeleted ? (
+                              <button
+                                onClick={() => handleAdminRestoreComment(c.id)}
+                                style={{
+                                  background: '#EFF6FF', border: '1.5px solid #BFDBFE', color: '#2563EB',
+                                  padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600
+                                }}
+                              >🔓 Khôi phục</button>
+                            ) : (
+                              <button
+                                onClick={() => handleAdminDeleteComment(c.id)}
+                                style={{
+                                  background: '#FFF5F5', border: '1.5px solid #FECACA', color: '#DC2626',
+                                  padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600
+                                }}
+                              >🗑️ Xóa</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── COMMENT LOGS PANEL ── */}
+          {activeTab === 'COMMENT_LOGS' && (
+            <>
+              {commentLogs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+                  <p style={{ fontSize: '15px' }}>Chưa có lịch sử xử lý nào của giảng viên</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
+                    <thead>
+                      <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Giảng viên</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Hành động</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Bình luận ID</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151', width: '35%' }}>Nội dung bình luận</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Lý do / Ghi chú</th>
+                        <th style={{ padding: '14px 16px', fontWeight: 600, color: '#374151' }}>Thời gian</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {commentLogs.filter(l => {
+                        const q = searchQuery.toLowerCase();
+                        return !searchQuery || l.teacherDisplayName?.toLowerCase().includes(q) || l.actionType?.toLowerCase().includes(q) || l.commentContent?.toLowerCase().includes(q);
+                      }).map((l) => {
+                        const actionStyle = l.actionType === 'HIDE' ? { bg: '#FEE2E2', color: '#991B1B', label: 'Ẩn bình luận' }
+                          : l.actionType === 'UNHIDE' ? { bg: '#D1FAE5', color: '#065F46', label: 'Hiện bình luận' }
+                          : l.actionType === 'PIN' ? { bg: '#FEF3C7', color: '#92400E', label: 'Ghim hữu ích' }
+                          : l.actionType === 'UNPIN' ? { bg: '#F3F4F6', color: '#4B5563', label: 'Bỏ ghim' }
+                          : { bg: '#FEE2E2', color: '#DC2626', label: 'Báo cáo vi phạm' };
+
+                        return (
+                          <tr key={l.id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background 0.15s' }}>
+                            <td style={{ padding: '14px 16px', fontWeight: 600 }}>
+                              {l.teacherDisplayName}
+                              <div style={{ color: '#9CA3AF', fontSize: '11px', fontWeight: 400 }}>ID: #{l.teacherId}</div>
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={{
+                                background: actionStyle.bg, color: actionStyle.color,
+                                padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700
+                              }}>{actionStyle.label}</span>
+                            </td>
+                            <td style={{ padding: '14px 16px', color: '#6B7280' }}>#{l.commentId}</td>
+                            <td style={{ padding: '14px 16px', color: '#4B5563', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                              "{l.commentContent}"
+                            </td>
+                            <td style={{ padding: '14px 16px', color: '#4B5563' }}>
+                              {l.reason || '—'}
+                            </td>
+                            <td style={{ padding: '14px 16px', color: '#6B7280' }}>
+                              {new Date(l.createdAt).toLocaleString('vi-VN')}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
         </div>

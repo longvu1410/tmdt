@@ -14,5 +14,6 @@ public class UserManagementResponse {
     private Boolean enabled;
     private List<String> roles;
     private String displayName;
+    private Integer warningCount;
     private Instant createdAt;
 }

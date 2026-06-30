@@ -1,13 +1,13 @@
 import React from 'react';
 
 const Footer = () => {
-  const linkStyle = { color: '#6B7280', fontSize: '14px', display: 'block', marginBottom: '10px', transition: 'color 0.15s' };
-  const headingStyle = { fontWeight: 700, fontSize: '14px', color: '#111827', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' };
+  const linkStyle = { color: '#9CA3AF', fontSize: '14px', display: 'block', marginBottom: '10px', transition: 'color 0.15s' };
+  const headingStyle = { fontWeight: 700, fontSize: '14px', color: '#F3F4F6', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' };
 
   return (
-    <footer style={{ background: '#111827', color: '#fff' }}>
-      <div style={{ maxWidth: '1340px', margin: '0 auto', padding: '48px 24px 32px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '40px', marginBottom: '40px' }}>
+    <footer className="app-footer">
+      <div className="app-footer__inner">
+        <div className="app-footer__grid">
           {/* Brand */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -42,9 +42,9 @@ const Footer = () => {
             <p style={{ ...linkStyle, cursor: 'default' }}>✉️ hotro@engmastery.vn</p>
           </div>
         </div>
-        <div style={{ borderTop: '1px solid #374151', paddingTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="app-footer__bottom">
           <span style={{ color: '#6B7280', fontSize: '13px' }}>© 2026 EngMastery. Đã đăng ký bản quyền.</span>
-          <div style={{ display: 'flex', gap: '20px' }}>
+          <div className="app-footer__bottom-links">
             {['Điều khoản', 'Bảo mật', 'Cookie'].map(t => (
               <a key={t} href="#" style={{ color: '#6B7280', fontSize: '13px' }}>{t}</a>
             ))}

@@ -62,6 +62,10 @@ public class AppUser {
     @Column(length = 500)
     private String avatarUrl;
 
+    @Builder.Default
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private Integer warningCount = 0;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

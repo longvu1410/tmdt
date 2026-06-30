@@ -72,6 +72,27 @@ public class UserManagementService {
         return toResponse(updated);
     }
 
+    @Transactional
+    public UserManagementResponse warnUser(Long userId, UserPrincipal adminPrincipal) {
+        if (userId.equals(adminPrincipal.getId())) {
+            throw new BadRequestException("Bạn không thể tự cảnh cáo chính mình");
+        }
+
+        AppUser user = appUserRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy người dùng"));
+
+        int warnings = (user.getWarningCount() != null ? user.getWarningCount() : 0) + 1;
+        user.setWarningCount(warnings);
+
+        // Auto-ban if warnings reach 3
+        if (warnings >= 3) {
+            user.setEnabled(false);
+        }
+
+        AppUser updated = appUserRepository.save(user);
+        return toResponse(updated);
+    }
+
     private UserManagementResponse toResponse(AppUser u) {
         return UserManagementResponse.builder()
                 .id(u.getId())
@@ -80,6 +101,7 @@ public class UserManagementService {
                 .enabled(u.getEnabled())
                 .displayName(u.getDisplayName() != null ? u.getDisplayName() : u.getUsername())
                 .roles(u.getRoles().stream().map(r -> r.getName().name()).toList())
+                .warningCount(u.getWarningCount() != null ? u.getWarningCount() : 0)
                 .createdAt(u.getCreatedAt())
                 .build();
     }

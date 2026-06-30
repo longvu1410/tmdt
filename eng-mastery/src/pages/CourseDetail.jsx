@@ -87,7 +87,7 @@ const CourseDetail = () => {
       courseId:       Number(id),
       courseTitle:    course?.title ?? '',
       courseSlug:     course?.slug ?? '',
-      price:          course?.discountPrice !== null && course?.discountPrice !== undefined ? course.discountPrice : (course?.price ?? 0),
+      price:          (course?.isDiscountActive && course?.discountPrice !== null && course?.discountPrice !== undefined) ? course.discountPrice : (course?.price ?? 0),
       thumbnailUrl:   course?.thumbnailUrl ?? null,
       instructorName: course?.instructorName ?? '',
       level:          course?.level ?? '',
@@ -234,7 +234,7 @@ const CourseDetail = () => {
     </div>
   );
 
-  const hasDiscount = course.discountPrice !== null && course.discountPrice !== undefined && course.discountPrice >= 0;
+  const hasDiscount = course.isDiscountActive && course.discountPrice !== null && course.discountPrice !== undefined && course.discountPrice >= 0;
   const priceFormatted = course.price?.toLocaleString('vi-VN') + 'đ';
 
 
@@ -586,6 +586,11 @@ const CourseDetail = () => {
                   <div style={{ display: 'inline-block', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 700, marginTop: '6px' }}>
                     🏷️ TIẾT KIỆM {Math.round((1 - course.discountPrice / course.price) * 100)}%
                   </div>
+                  {course.discountEndAt && (
+                    <div style={{ fontSize: '12px', color: '#EF4444', fontWeight: 600, marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      ⏳ Kết thúc: {new Date(course.discountEndAt).toLocaleString('vi-VN')}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p style={{ fontSize: '30px', fontWeight: 700, color: '#111827', marginBottom: '16px' }}>{priceFormatted}</p>

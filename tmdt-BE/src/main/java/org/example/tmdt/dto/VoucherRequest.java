@@ -44,4 +44,6 @@ public class VoucherRequest {
     private Instant startsAt;
 
     private Instant expiresAt;
+
+    private java.util.List<Long> applicableCourseIds;
 }

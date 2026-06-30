@@ -1,24 +1,12 @@
 package org.example.tmdt.entity;
 
-import jakarta.persistence.CollectionTable;
-import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OrderColumn;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -100,6 +88,12 @@ public class Course {
     @Column(precision = 12, scale = 2)
     private BigDecimal discountPrice;
 
+    /** Thời điểm bắt đầu giảm giá (null = ngay lập tức) */
+    private Instant discountStartAt;
+
+    /** Thời điểm kết thúc giảm giá (null = vô thời hạn) */
+    private Instant discountEndAt;
+
     @Builder.Default
     @ElementCollection
     @CollectionTable(name = "course_outcomes", joinColumns = @JoinColumn(name = "course_id"))
@@ -121,9 +115,8 @@ public class Course {
     private List<CourseSection> sections = new ArrayList<>();
 
     @Builder.Default
-    @ElementCollection
-    @CollectionTable(name = "course_reviews", joinColumns = @JoinColumn(name = "course_id"))
-    @OrderColumn(name = "sort_order")
+    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC, createdAt DESC")
     private List<CourseReview> reviews = new ArrayList<>();
 
     @Column(nullable = false)

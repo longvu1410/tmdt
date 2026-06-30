@@ -20,6 +20,8 @@ import MyComplaints from './pages/MyComplaints';
 import ChatPage from './pages/ChatPage';
 import Profile from './pages/Profile';
 import ResetPassword from './pages/ResetPassword';
+import TeacherComments from './pages/TeacherComments';
+import TeacherVouchers from './pages/TeacherVouchers';
 
 
 function App() {
@@ -51,6 +53,8 @@ function App() {
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/revenue" element={<TeacherRevenue />} />
                 <Route path="/teacher/courses" element={<TeacherCourses />} />
+                <Route path="/teacher/comments" element={<TeacherComments />} />
+                <Route path="/teacher/vouchers" element={<TeacherVouchers />} />
                 <Route path="/teacher/edit-course/:id" element={<EditCourse />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/reset-password" element={<ResetPassword />} />

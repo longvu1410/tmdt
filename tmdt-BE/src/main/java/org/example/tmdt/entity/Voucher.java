@@ -1,17 +1,9 @@
 package org.example.tmdt.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -62,6 +54,17 @@ public class Voucher {
     private Instant startsAt;
 
     private Instant expiresAt;
+
+    /** Teacher sở hữu voucher (null = voucher Admin/global) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "teacher_id")
+    private AppUser teacher;
+
+    /** Danh sách ID khóa học được áp dụng (null/empty = tất cả khóa của teacher) */
+    @ElementCollection
+    @CollectionTable(name = "voucher_applicable_courses", joinColumns = @JoinColumn(name = "voucher_id"))
+    @Column(name = "course_id")
+    private List<Long> applicableCourseIds;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

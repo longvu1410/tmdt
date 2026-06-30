@@ -7,6 +7,13 @@ const getUser = () => {
   try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
 };
 
+const formatDateForInput = (isoString) => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const tzoffset = date.getTimezoneOffset() * 60000;
+  return (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+};
+
 // ── Sub-components (same style as CreateCourse) ───────────────────
 const SectionHeader = ({ children }) => (
   <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#111827', marginBottom: '16px', paddingBottom: '10px', borderBottom: '2px solid #E5E7EB' }}>
@@ -205,6 +212,8 @@ const EditCourse = () => {
           description: data.description || '',
           price: data.price?.toString() || '',
           discountPrice: data.discountPrice?.toString() || '',
+          discountStartAt: formatDateForInput(data.discountStartAt),
+          discountEndAt: formatDateForInput(data.discountEndAt),
           thumbnailUrl: data.thumbnailUrl || '',
           instructorName: data.instructorName || '',
           language: data.language || 'Vietnamese',
@@ -288,6 +297,8 @@ const EditCourse = () => {
         ...form,
         price: originalPrice,
         discountPrice: promoPrice,
+        discountStartAt: form.discountStartAt ? new Date(form.discountStartAt).toISOString() : null,
+        discountEndAt: form.discountEndAt ? new Date(form.discountEndAt).toISOString() : null,
         lessonCount: parseInt(form.lessonCount) || 1,
         studentCount: parseInt(form.studentCount) || 0,
         ratingCount: parseInt(form.ratingCount) || 0,
@@ -566,6 +577,14 @@ const EditCourse = () => {
                     🏷️ Tiết kiệm: {Math.round((1 - parseFloat(form.discountPrice) / parseFloat(form.price)) * 100)}%
                   </div>
                 )}
+              </Field>
+              <Field label="Bắt đầu giảm giá" hint="Để trống nếu muốn áp dụng ngay">
+                <input style={inputStyle} type="datetime-local" value={form.discountStartAt || ''}
+                  onChange={e => setField('discountStartAt', e.target.value)} />
+              </Field>
+              <Field label="Kết thúc giảm giá" hint="Để trống nếu muốn giảm giá vĩnh viễn">
+                <input style={inputStyle} type="datetime-local" value={form.discountEndAt || ''}
+                  onChange={e => setField('discountEndAt', e.target.value)} />
               </Field>
               <Field label="Số bài học">
                 <input style={inputStyle} type="number" min={1} value={form.lessonCount}
